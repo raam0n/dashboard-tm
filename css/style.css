@@ -1,0 +1,677 @@
+/* Reset & Tipografía */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #121212;
+  background-image: url('../assets/wallpaper.png');
+  background-repeat: repeat;
+  background-attachment: fixed;
+  color: #ddd;
+  min-height: 100vh;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Header & Barra de navegación */
+.main-header {
+  width: 100%;
+  max-width: 1440px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 15px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand img {
+  width: 38px;
+  height: 38px;
+}
+
+.brand h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.brand .badge-subtitle {
+  font-size: 0.75rem;
+  background: #ffaa00;
+  color: #000;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+/* Solapas de Navegación */
+.nav-tabs {
+  display: flex;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-tab {
+  background: transparent;
+  color: #aaa;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-tab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nav-tab.active {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+/* Botones de acción */
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.btn-primary {
+  background: #16a34a;
+  border-color: #22c55e;
+}
+
+.btn-primary:hover {
+  background: #15803d;
+}
+
+/* Banner Live Now */
+.live-banner-container {
+  width: 100%;
+  max-width: 1440px;
+  margin-bottom: 25px;
+}
+
+.live-banner {
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  min-height: 48px;
+}
+
+.live-badge {
+  background: #ef4444;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  animation: pulse 1.5s infinite;
+}
+
+.live-clock {
+  font-size: 0.85rem;
+  color: #888;
+  font-weight: 600;
+}
+
+.live-match-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+  justify-content: center;
+}
+
+.live-civ-shield {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.live-flag {
+  width: 20px;
+  height: 14px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.live-vs {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin: 0 4px;
+}
+
+.live-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.live-map {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #eee;
+}
+
+.live-duration {
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: #f59e0b;
+}
+
+.live-empty {
+  color: #666;
+  font-size: 0.9rem;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Grid de Tarjetas de Jugadores */
+.cards-grid {
+  width: 100%;
+  max-width: 1440px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* Tarjeta de Jugador */
+.player-card {
+  width: 460px;
+  background-color: rgba(18, 18, 18, 0.92);
+  border-radius: 8px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+  background-size: 16px 16px;
+}
+
+.player-card:hover {
+  transform: translateY(-2px);
+  background-color: rgba(28, 28, 28, 0.95);
+}
+
+/* Bordes y brillos especiales para los 3 primeros puestos */
+.player-card.rank-1 {
+  border-color: #ffd700;
+  box-shadow: inset 0 0 5px #ffd700, 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.player-card.rank-2 {
+  border-color: #d1d5db;
+  box-shadow: inset 0 0 5px #d1d5db, 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.player-card.rank-3 {
+  border-color: #cd7f32;
+  box-shadow: inset 0 0 5px #cd7f32, 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.player-card.is-playing {
+  border-color: #ef4444 !important;
+  box-shadow: inset 0 0 8px rgba(239, 68, 68, 0.6), 0 0 15px rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Badge de posición (Top Right) */
+.position-stamp {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.25rem;
+  border-radius: 0 0 0 10px;
+}
+
+.stamp-1 { background: #ffd700; color: #000; }
+.stamp-2 { background: #d1d5db; color: #000; }
+.stamp-3 { background: #cd7f32; color: #000; }
+.stamp-other { background: #262626; color: #777; }
+
+/* Contenido de la Tarjeta */
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-right: 35px;
+}
+
+.card-flag {
+  width: 28px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.player-name {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-live-tag {
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  animation: pulse 1.5s infinite;
+}
+
+/* Métricas de Elo */
+.card-stats-row {
+  font-size: 1.05rem;
+  color: #999;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.elo-now {
+  color: #0099ff;
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.elo-diff {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.elo-max, .elo-avg {
+  color: #eee;
+  font-weight: 700;
+}
+
+/* Fila de civilizaciones jugadas */
+.card-civs-label {
+  font-size: 0.9rem;
+  color: #888;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.streak-indicator {
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.civs-icons-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.civ-shield-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #111;
+  object-fit: cover;
+  transition: transform 0.15s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+
+.civ-shield-icon:hover {
+  transform: scale(1.18);
+  z-index: 5;
+}
+
+.civ-win {
+  border: 2.5px solid #22c55e;
+}
+
+.civ-loss {
+  border: 2.5px solid #ef4444;
+}
+
+.civ-ongoing {
+  border: 2.5px solid #f59e0b;
+  animation: pulse 1.2s infinite;
+}
+
+/* Botón quitar jugador */
+.remove-player-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.remove-player-btn:hover {
+  color: #ef4444;
+}
+
+/* Colores de estado */
+.green { color: #22c55e !important; }
+.red { color: #ef4444 !important; }
+
+/* Animación Pulse */
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Modal Detalle de Jugador */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  padding: 20px;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-container {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  padding: 24px;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #888;
+  cursor: pointer;
+}
+
+.modal-close:hover { color: #fff; }
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
+}
+
+.modal-title-row h2 {
+  font-size: 1.8rem;
+  color: #fff;
+}
+
+/* Sección Civs en Modal */
+.modal-section-title {
+  font-size: 1.15rem;
+  color: #f59e0b;
+  font-weight: 700;
+  margin: 18px 0 10px 0;
+}
+
+.civs-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.civ-stat-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.civ-stat-box img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.civ-stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.civ-stat-name {
+  font-weight: 700;
+  color: #fff;
+}
+
+.civ-stat-numbers {
+  color: #999;
+}
+
+/* Tabla de Partidas */
+.matches-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.matches-table th {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  color: #aaa;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.matches-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #ddd;
+}
+
+.matches-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Vistas adicionales: Métricas Semanales y Top Civs */
+.view-container {
+  width: 100%;
+  max-width: 1440px;
+  background: rgba(18, 18, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 10px;
+}
+
+.view-container h2 {
+  font-size: 1.6rem;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.view-container p.subtitle {
+  color: #888;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+}
+
+/* Tarjetas de Métricas */
+.metrics-cards-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  flex: 1;
+  min-width: 220px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.metric-card .label {
+  font-size: 0.85rem;
+  color: #888;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.metric-card .value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* Barra de progreso de winrate */
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #333;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #22c55e;
+  border-radius: 4px;
+}
+
+/* Loading & Estados */
+.loading-box {
+  text-align: center;
+  padding: 60px 20px;
+  color: #aaa;
+  font-size: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

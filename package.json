@@ -1,0 +1,12 @@
+{
+  "name": "aoe2-group-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard de ranking grupal de Age of Empires II con soporte 1v1 y RM Team",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["aoe2", "dashboard", "ranking", "overlay"],
+  "author": "",
+  "license": "MIT"
+}
