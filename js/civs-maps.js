@@ -1,9 +1,9 @@
 import { getCivIconUrl } from './api.js';
 
 /**
- * Renderiza la vista de Top Civilizaciones y Mapas del grupo
+ * Renderiza la vista de Top Civilizaciones y Mapas del grupo con toggle entre RM 1v1 y RM Team
  */
-export function renderCivsAndMapsView(playersData, container) {
+export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_1v1', onModeChange) {
   const allMatches = [];
   playersData.filter(Boolean).forEach(p => {
     (p.matches || []).forEach(m => {
@@ -81,10 +81,27 @@ export function renderCivsAndMapsView(playersData, container) {
     </tr>
   `).join('');
 
+  const modeLabel = currentMode === 'rm_team' ? 'RM Team' : 'RM 1vs1';
+  const modeSubtitle = currentMode === 'rm_team' 
+    ? 'Análisis acumulado de elecciones de civilización y mapas en partidas por equipos (RM Team).' 
+    : 'Análisis acumulado de elecciones de civilización y mapas en partidas individuales (RM 1vs1).';
+
   container.innerHTML = `
     <div class="view-container">
-      <h2>🗺️ Civilizaciones y Mapas más Jugados</h2>
-      <p class="subtitle">Análisis acumulado de las elecciones de civilización y escenarios de juego de todo el grupo.</p>
+      <div class="view-header-row">
+        <div>
+          <h2>🗺️ Civilizaciones y Mapas más Jugados (${modeLabel})</h2>
+          <p class="subtitle">${modeSubtitle}</p>
+        </div>
+        <div class="mode-toggle-group">
+          <button class="mode-toggle-btn ${currentMode === 'rm_1v1' ? 'active' : ''}" data-mode="rm_1v1">
+            <span>⚔️</span> RM 1vs1
+          </button>
+          <button class="mode-toggle-btn ${currentMode === 'rm_team' ? 'active' : ''}" data-mode="rm_team">
+            <span>🛡️</span> RM Team
+          </button>
+        </div>
+      </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px;">
         <div>
@@ -100,7 +117,7 @@ export function renderCivsAndMapsView(playersData, container) {
               </tr>
             </thead>
             <tbody>
-              ${civRows || '<tr><td colspan="5">Sin datos</td></tr>'}
+              ${civRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de partidas para este modo</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -118,11 +135,21 @@ export function renderCivsAndMapsView(playersData, container) {
               </tr>
             </thead>
             <tbody>
-              ${mapRows || '<tr><td colspan="5">Sin datos</td></tr>'}
+              ${mapRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de mapas para este modo</td></tr>'}
             </tbody>
           </table>
         </div>
       </div>
     </div>
   `;
+
+  // Listener para el toggle
+  container.querySelectorAll('.mode-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (mode && onModeChange && mode !== currentMode) {
+        onModeChange(mode);
+      }
+    });
+  });
 }

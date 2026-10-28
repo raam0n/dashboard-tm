@@ -7,6 +7,8 @@ import { renderCivsAndMapsView } from './civs-maps.js';
 // Estado global de la aplicación
 const state = {
   currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'weekly' | 'civs'
+  weeklyMode: 'rm_1v1', // 'rm_1v1' | 'rm_team'
+  civsMode: 'rm_1v1',   // 'rm_1v1' | 'rm_team'
   playerIds: getActivePlayerIds(),
   playersData1v1: [],
   playersDataTeam: [],
@@ -162,10 +164,18 @@ function renderCurrentView() {
     );
   } else if (state.currentTab === 'weekly') {
     elements.contentArea.className = '';
-    renderWeeklyView(state.playersData1v1, elements.contentArea);
+    const data = state.weeklyMode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
+    renderWeeklyView(data, elements.contentArea, state.weeklyMode, (newMode) => {
+      state.weeklyMode = newMode;
+      renderCurrentView();
+    });
   } else if (state.currentTab === 'civs') {
     elements.contentArea.className = '';
-    renderCivsAndMapsView(state.playersData1v1, elements.contentArea);
+    const data = state.civsMode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
+    renderCivsAndMapsView(data, elements.contentArea, state.civsMode, (newMode) => {
+      state.civsMode = newMode;
+      renderCurrentView();
+    });
   }
 }
 
@@ -195,12 +205,19 @@ function startPolling() {
   if (state.pollTimer) clearInterval(state.pollTimer);
   state.pollTimer = setInterval(async () => {
     console.log('🔄 Verificando estado en vivo de jugadores...');
-    // Actualizamos en segundo plano
-    const promises1v1 = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, true));
-    const res = await Promise.all(promises1v1);
-    state.playersData1v1 = res.filter(Boolean);
-    if (state.currentTab === 'rm_1v1') {
+    try {
+      // Actualizamos en segundo plano tanto 1v1 como Team
+      const promises1v1 = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, true));
+      const promisesTeam = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, true));
+      const [res1v1, resTeam] = await Promise.all([
+        Promise.all(promises1v1),
+        Promise.all(promisesTeam)
+      ]);
+      state.playersData1v1 = res1v1.filter(Boolean);
+      state.playersDataTeam = resTeam.filter(Boolean);
       renderCurrentView();
+    } catch (err) {
+      console.warn('Error en polling:', err);
     }
   }, CONFIG.POLL_INTERVAL_MS);
 }

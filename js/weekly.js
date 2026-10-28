@@ -1,14 +1,14 @@
 import { getFlagUrl } from './api.js';
 
 /**
- * Renderiza la vista de Métricas Semanales
+ * Renderiza la vista de Métricas Semanales con toggle entre RM 1v1 y RM Team
  */
-export function renderWeeklyView(playersData, container) {
+export function renderWeeklyView(playersData, container, currentMode = 'rm_1v1', onModeChange) {
   const oneWeekAgo = Date.now() / 1000 - (7 * 24 * 60 * 60);
 
   const weeklyStats = playersData.filter(Boolean).map(player => {
     // Filtramos partidas de los últimos 7 días
-    const weekMatches = player.matches.filter(m => m.started && m.started >= oneWeekAgo && m.status !== 'ongoing');
+    const weekMatches = (player.matches || []).filter(m => m.started && m.started >= oneWeekAgo && m.status !== 'ongoing');
     const total = weekMatches.length;
     const wins = weekMatches.filter(m => m.player?.won).length;
     const losses = total - wins;
@@ -71,10 +71,27 @@ export function renderWeeklyView(playersData, container) {
     `;
   }).join('');
 
+  const modeLabel = currentMode === 'rm_team' ? 'RM Team' : 'RM 1vs1';
+  const modeSubtitle = currentMode === 'rm_team' 
+    ? 'Monitoreo semanal de partidas por equipos (RM Team).' 
+    : 'Monitoreo semanal de partidas individuales (RM 1vs1).';
+
   container.innerHTML = `
     <div class="view-container">
-      <h2>📊 Rendimiento y Deltas Semanales (Últimos 7 días)</h2>
-      <p class="subtitle">Monitoreo semanal del grupo para ver quiénes están en racha ascendente y el winrate colectivo.</p>
+      <div class="view-header-row">
+        <div>
+          <h2>📊 Rendimiento y Deltas Semanales (${modeLabel})</h2>
+          <p class="subtitle">${modeSubtitle}</p>
+        </div>
+        <div class="mode-toggle-group">
+          <button class="mode-toggle-btn ${currentMode === 'rm_1v1' ? 'active' : ''}" data-mode="rm_1v1">
+            <span>⚔️</span> RM 1vs1
+          </button>
+          <button class="mode-toggle-btn ${currentMode === 'rm_team' ? 'active' : ''}" data-mode="rm_team">
+            <span>🛡️</span> RM Team
+          </button>
+        </div>
+      </div>
 
       <div class="metrics-cards-row">
         <div class="metric-card">
@@ -115,9 +132,19 @@ export function renderWeeklyView(playersData, container) {
           </tr>
         </thead>
         <tbody>
-          ${rowsHtml}
+          ${rowsHtml || '<tr><td colspan="7" style="text-align:center; padding:20px; color:#777;">No se registraron partidas en los últimos 7 días</td></tr>'}
         </tbody>
       </table>
     </div>
   `;
+
+  // Listener para el toggle
+  container.querySelectorAll('.mode-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (mode && onModeChange && mode !== currentMode) {
+        onModeChange(mode);
+      }
+    });
+  });
 }

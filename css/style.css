@@ -585,23 +585,70 @@ body {
 .view-container {
   width: 100%;
   max-width: 1440px;
-  background: rgba(18, 18, 18, 0.92);
+  background: #181a1f;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 24px;
   margin-top: 10px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
 }
 
-.view-container h2 {
+.view-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 16px;
+}
+
+.view-header-row h2 {
   font-size: 1.6rem;
   color: #fff;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
-.view-container p.subtitle {
+.view-header-row p.subtitle {
   color: #888;
   font-size: 0.95rem;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+}
+
+.mode-toggle-group {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  gap: 4px;
+}
+
+.mode-toggle-btn {
+  background: transparent;
+  color: #888;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-toggle-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mode-toggle-btn.active {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
 }
 
 /* Tarjetas de Métricas */
