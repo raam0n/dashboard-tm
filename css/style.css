@@ -8,7 +8,7 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: #121212;
-  background-image: url('../assets/wallpaper.png');
+  background-image: url('../assets/hex.png');
   background-repeat: repeat;
   background-attachment: fixed;
   color: #ddd;
@@ -242,7 +242,7 @@ body {
 /* Tarjeta de Jugador */
 .player-card {
   width: 460px;
-  background-color: rgba(18, 18, 18, 0.92);
+  background-color: #181a1f;
   border-radius: 8px;
   padding: 16px;
   position: relative;
