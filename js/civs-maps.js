@@ -1,4 +1,4 @@
-import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029d';
+import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029e';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 
@@ -60,7 +60,7 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
       <td><strong>#${idx + 1}</strong></td>
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
-          <img src="${getCivIconUrl(c.name)}" style="width:26px; height:26px; border-radius:50%;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">
+          <img src="${getCivIconUrl(c.name)}" class="table-civ-icon" alt="${c.name}">
           <strong>${c.name}</strong>
         </div>
       </td>
@@ -77,7 +77,7 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
 
   const mapRows = sortedMaps.map((m, idx) => {
     const mapIconHtml = m.mapImageUrl
-      ? `<img src="${m.mapImageUrl}" style="width:28px; height:28px; object-fit:contain;" alt="${m.name}" onerror="this.style.display='none';">`
+      ? `<img src="${m.mapImageUrl}" class="table-map-icon" alt="${m.name}">`
       : '';
     return `
       <tr>

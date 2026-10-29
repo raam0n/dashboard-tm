@@ -1,4 +1,4 @@
-import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261029d';
+import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261029e';
 
 /**
  * Renderiza la vista de Métricas Semanales con toggle entre RM 1v1 y RM Team
@@ -64,7 +64,7 @@ export function renderWeeklyView(playersData, container, currentMode = 'rm_1v1',
         <td><strong>#${index + 1}</strong></td>
         <td>
           <div style="display:flex; align-items:center; gap:8px;">
-            <img src="${getFlagUrl(p.country)}" style="width:22px; border-radius:2px;">
+            <img src="${getFlagUrl(p.country)}" class="table-flag-icon" alt="${p.country}">
             <span>${p.name}</span>
           </div>
         </td>

@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261029d';
+import { CONFIG } from './config.js?v=20261029e';
 
 // Constantes de tiempo
 export const ONE_MONTH_MS = (CONFIG.ACTIVE_DAYS_THRESHOLD || 30) * 24 * 60 * 60 * 1000;

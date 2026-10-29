@@ -1,5 +1,5 @@
-import { getCivIconUrl, getFlagUrl, formatDateDDMMYYYY, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029d';
-import { CONFIG } from './config.js?v=20261029d';
+import { getCivIconUrl, getFlagUrl, formatDateDDMMYYYY, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029e';
+import { CONFIG } from './config.js?v=20261029e';
 
 /**
  * Formatea un timestamp relativo ("Hace 15 min", "Hace 2 h", "Ayer 18:30", etc.)

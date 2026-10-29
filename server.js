@@ -7,7 +7,7 @@ const PORT = 3000;
 const ROOT_DIR = path.resolve(__dirname);
 
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; img-src 'self' https://flagcdn.com https://backend.cdn.aoe2companion.com; connect-src 'self' https://data.aoe2companion.com",
+  'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://flagcdn.com https://backend.cdn.aoe2companion.com; connect-src 'self' https://data.aoe2companion.com",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer'

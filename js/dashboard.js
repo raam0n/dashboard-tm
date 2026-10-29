@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029d';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029e';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -424,8 +424,8 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
             : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
 
         const mapBoxHtml = m.mapImageUrl
-          ? `<img src="${m.mapImageUrl}" class="match-map-icon" alt="${mapName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-             <div class="map-diamond-fallback" style="display:none;"><span>?</span></div>`
+          ? `<img src="${m.mapImageUrl}" class="match-map-icon" alt="${mapName}">
+             <div class="map-diamond-fallback hidden"><span>?</span></div>`
           : `<div class="map-diamond-fallback"><span>?</span></div>`;
 
         const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : '#';
@@ -437,13 +437,11 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
             rel="noopener noreferrer" 
             class="last-match-col is-link" 
             title="${tooltip} • Click para ver estadísticas en AoE2Companion"
-            onclick="event.stopPropagation();"
           >
             <img 
               src="${getCivIconUrl(civName)}" 
               class="civ-shield-icon ${borderClass}" 
               alt="${civName}"
-              onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
             />
             <div class="match-map-frame">
               ${mapBoxHtml}
@@ -506,7 +504,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
 
       // Click en la tarjeta para ver estadísticas
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.remove-player-btn') || e.target.closest('.card-civs-toggle')) return;
+        if (e.target.closest('.remove-player-btn') || e.target.closest('.card-civs-toggle') || e.target.closest('.last-match-col')) return;
         if (onCardClick) onCardClick(player);
       });
 
@@ -615,7 +613,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
     const eloClass = eloChange > 0 ? 'green' : (eloChange < 0 ? 'red' : '');
 
     function renderPlayerChip(p, isTeammate = false) {
-      const civImg = p.civ ? `<img src="${getCivIconUrl(p.civ)}" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
+      const civImg = p.civ ? `<img src="${getCivIconUrl(p.civ)}" class="modal-chip-civ" alt="${p.civ}">` : '';
       const fallbackRole = isTeammate ? 'Compañero' : 'Rival';
       if (p.profileId) {
         return `
@@ -667,7 +665,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
       <tr>
         <td>${dateStr}</td>
         <td>${mapCellHtml}</td>
-        <td><img src="${getCivIconUrl(m.player?.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"> ${m.player?.civ || '-'}</td>
+        <td><div class="modal-match-civ-cell"><img src="${getCivIconUrl(m.player?.civ)}" class="modal-match-civ" alt="${m.player?.civ || ''}"> <span>${m.player?.civ || '-'}</span></div></td>
         <td>${playersCellHtml}</td>
         <td>${resultHtml}</td>
         <td class="${eloClass}"><strong>${eloDiffStr}</strong></td>
@@ -685,7 +683,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
     <button class="modal-close" id="modalCloseBtn">&times;</button>
     ${backBtnHtml}
     <div class="modal-title-row">
-      <img src="${getFlagUrl(player.country)}" style="width:36px; border-radius:4px;">
+      <img src="${getFlagUrl(player.country)}" class="modal-title-flag" alt="${player.country}">
       <h2>${player.name}</h2>
       <span style="color:#0099ff; font-weight:800; font-size:1.3rem; margin-left:auto;">${player.currentElo} Elo</span>
     </div>

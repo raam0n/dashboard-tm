@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261029d';
+import { CONFIG } from './config.js?v=20261029e';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -14,11 +14,11 @@ import {
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp,
   fetchGroupRecentMatches
-} from './api.js?v=20261029d';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029d';
-import { renderWeeklyView } from './weekly.js?v=20261029d';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261029d';
-import { renderRecentMatchesView } from './history.js?v=20261029d';
+} from './api.js?v=20261029e';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029e';
+import { renderWeeklyView } from './weekly.js?v=20261029e';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261029e';
+import { renderRecentMatchesView } from './history.js?v=20261029e';
 
 // Estado global de la aplicación
 const state = {
@@ -86,6 +86,23 @@ async function init() {
  * Configura los eventos de interacción
  */
 function setupEventListeners() {
+  // Fallback global para imágenes rotas (mapas o escudos) compatible con CSP
+  document.addEventListener('error', (e) => {
+    const el = e.target;
+    if (!el || el.tagName !== 'IMG') return;
+    if (el.classList.contains('match-map-icon')) {
+      el.classList.add('hidden');
+      if (el.nextElementSibling && el.nextElementSibling.classList.contains('map-diamond-fallback')) {
+        el.nextElementSibling.classList.remove('hidden');
+      }
+    } else if (el.classList.contains('hm-map-img') || el.classList.contains('table-map-icon')) {
+      el.classList.add('hidden');
+    } else if (!el.dataset.fallbackApplied) {
+      el.dataset.fallbackApplied = '1';
+      el.src = 'assets/icons/logo-128.png';
+    }
+  }, true);
+
   // Cambio de solapas
   elements.navTabs.forEach(tab => {
     tab.addEventListener('click', () => {
