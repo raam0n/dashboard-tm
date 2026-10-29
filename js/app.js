@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261029a';
+import { CONFIG } from './config.js?v=20261029b';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -7,13 +7,16 @@ import {
   saveActivePlayerIds, 
   getPlayerStats,
   fetchProfile,
+  fetchMatches,
   fetchGroupLiveMatches,
+  fetchGroupBootstrap,
+  buildPlayerStatsFromProfileAndMatches,
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp
-} from './api.js?v=20261029a';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029a';
-import { renderWeeklyView } from './weekly.js?v=20261029a';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261029a';
+} from './api.js?v=20261029b';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029b';
+import { renderWeeklyView } from './weekly.js?v=20261029b';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261029b';
 
 // Estado global de la aplicación
 const state = {
@@ -26,7 +29,8 @@ const state = {
   playersDataTeam: [],
   liveMatches: [],
   isLoading: false,
-  pollTimer: null
+  pollTimer: null,
+  loadGeneration: 0
 };
 
 // Referencias a elementos del DOM
@@ -210,15 +214,15 @@ function setupEventListeners() {
 }
 
 /**
- * Sincroniza el estado "en vivo" entre 1v1, Team y la consulta grupal de partidas en curso
- * para que las tarjetas muestren "Live now" sin importar en qué modo esté jugando el jugador.
+ * Sincroniza el estado "en vivo" entre 1v1, Team y la consulta grupal de partidas en curso.
+ * Limpia correctamente `isPlayingNow` cuando una partida termina o es abandonada.
  */
 function syncPlayingState(list1v1, listTeam, groupLiveMatches = []) {
   const liveMap = new Map();
 
-  // Primero tomamos todas las partidas en curso de la consulta grupal directa
+  // Tomamos las partidas en curso verificadas de la consulta grupal
   (groupLiveMatches || []).forEach(m => {
-    if (!m || !Array.isArray(m.allPlayers)) return;
+    if (!m || m.abandoned || m.status === 'abandoned' || m.finished || !Array.isArray(m.allPlayers)) return;
     m.allPlayers.forEach(p => {
       if (p && p.profileId && !liveMap.has(p.profileId)) {
         liveMap.set(p.profileId, m);
@@ -226,66 +230,146 @@ function syncPlayingState(list1v1, listTeam, groupLiveMatches = []) {
     });
   });
 
-  // También sumamos cualquier partida en curso detectada individualmente
-  [...list1v1, ...listTeam].forEach(p => {
-    if (p && p.isPlayingNow && p.ongoingMatch) {
-      liveMap.set(p.profileId, p.ongoingMatch);
-    }
-  });
-
-  // Aplicamos el estado a las tarjetas de 1v1 y Team
+  // Aplicamos el estado a las tarjetas de 1v1 y Team (y limpiamos los que ya no están en vivo)
   [...list1v1, ...listTeam].forEach(p => {
     if (!p) return;
     if (liveMap.has(p.profileId)) {
+      const liveMatch = liveMap.get(p.profileId);
       p.isPlayingNow = true;
-      p.ongoingMatch = liveMap.get(p.profileId);
+      p.ongoingMatch = liveMatch;
+      if (liveMatch.leaderboardId === p.leaderboardId) {
+        p.isActiveLastMonth = true;
+      }
+    } else {
+      p.isPlayingNow = false;
+      p.ongoingMatch = null;
     }
   });
 }
 
 /**
- * Carga los datos de todos los jugadores para 1v1 y Team
+ * Carga los datos de los jugadores en 2 fases:
+ * - Fase 1 (Instantánea ~0.5s): 4 llamadas grupales en lote para renderizar el ranking y el banner live al instante.
+ * - Fase 2 (Segundo plano): hidrata perfiles de inactivos faltantes y el historial de 20 partidas SOLO de los jugadores activos en el último mes.
  */
 async function loadAllData(forceRefresh = false) {
-  state.isLoading = true;
-  elements.contentArea.innerHTML = `
-    <div class="loading-box">
-      <div class="spinner"></div>
-      <p>Cargando datos de ${state.playerIds.length} jugadores en tiempo real...</p>
-    </div>
-  `;
+  const myGen = ++state.loadGeneration;
+
+  if (state.playersData1v1.length === 0 && state.playersDataTeam.length === 0) {
+    state.isLoading = true;
+    elements.contentArea.innerHTML = `
+      <div class="loading-box">
+        <div class="spinner"></div>
+        <p>Cargando datos de ${state.playerIds.length} jugadores en tiempo real...</p>
+      </div>
+    `;
+  }
 
   try {
-    // 1. Consultamos primero y en 1 sola llamada todas las partidas en curso del grupo
-    fetchGroupLiveMatches(state.playerIds).then(liveMatches => {
-      state.liveMatches = liveMatches || [];
-      const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
-      renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds, handlePlayerProfileClick);
-    });
+    // FASE 1: Bootstrap grupal ultrarrápido
+    const bootstrap = await fetchGroupBootstrap(state.playerIds, forceRefresh);
+    if (myGen !== state.loadGeneration) return;
 
-    // 2. Cargamos los jugadores en lotes de a 6 para evitar rate-limiting de Cloudflare cuando son muchos jugadores
-    const data1v1 = [];
-    const dataTeam = [];
-    const batchSize = 6;
+    state.liveMatches = bootstrap.liveMatches || [];
+    state.playersData1v1 = bootstrap.initial1v1 || [];
+    state.playersDataTeam = bootstrap.initialTeam || [];
+    syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
 
-    for (let i = 0; i < state.playerIds.length; i += batchSize) {
-      const batchIds = state.playerIds.slice(i, i + batchSize);
-      const [batch1v1, batchTeam] = await Promise.all([
-        Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, forceRefresh))),
-        Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, forceRefresh)))
-      ]);
-      data1v1.push(...batch1v1.filter(Boolean));
-      dataTeam.push(...batchTeam.filter(Boolean));
+    state.isLoading = false;
+    renderCurrentView();
+
+    // FASE 2A: Completar perfiles de jugadores inactivos que no estaban en ambos leaderboards activos
+    const missingProfileIds = bootstrap.missingProfileIds || [];
+    const batchSize = 4;
+
+    for (let i = 0; i < missingProfileIds.length; i += batchSize) {
+      if (myGen !== state.loadGeneration) return;
+      const batchIds = missingProfileIds.slice(i, i + batchSize);
+      const profiles = await Promise.all(batchIds.map(id => fetchProfile(id, forceRefresh)));
+      if (myGen !== state.loadGeneration) return;
+
+      profiles.forEach(prof => {
+        if (!prof || !prof.profileId) return;
+        const idx1 = state.playersData1v1.findIndex(p => p.profileId === prof.profileId);
+        if (idx1 !== -1) {
+          const prev = state.playersData1v1[idx1];
+          state.playersData1v1[idx1] = buildPlayerStatsFromProfileAndMatches(
+            prof,
+            CONFIG.LEADERBOARDS.RM_1V1,
+            prev.matches,
+            prev.matchesLoaded
+          );
+        }
+        const idxT = state.playersDataTeam.findIndex(p => p.profileId === prof.profileId);
+        if (idxT !== -1) {
+          const prev = state.playersDataTeam[idxT];
+          state.playersDataTeam[idxT] = buildPlayerStatsFromProfileAndMatches(
+            prof,
+            CONFIG.LEADERBOARDS.RM_TEAM,
+            prev.matches,
+            prev.matchesLoaded
+          );
+        }
+      });
+
+      syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+      renderCurrentView();
+      if (i + batchSize < missingProfileIds.length) {
+        await new Promise(r => setTimeout(r, 180));
+      }
     }
 
-    state.playersData1v1 = data1v1;
-    state.playersDataTeam = dataTeam;
-    syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+    // FASE 2B: Cargar el historial de 20 partidas ÚNICAMENTE para los jugadores activos en el último mes
+    async function hydrateActiveLeaderboardMatches(targetList, leaderboardId) {
+      const toHydrate = targetList.filter(p => p && p.isActiveLastMonth && (!p.matchesLoaded || forceRefresh));
+      for (let i = 0; i < toHydrate.length; i += batchSize) {
+        if (myGen !== state.loadGeneration) return;
+        const batch = toHydrate.slice(i, i + batchSize);
+        const matchesBatch = await Promise.all(
+          batch.map(p => fetchMatches(p.profileId, leaderboardId, 20, forceRefresh))
+        );
+        if (myGen !== state.loadGeneration) return;
+
+        batch.forEach((p, idx) => {
+          const matches = matchesBatch[idx] || [];
+          const listIdx = targetList.findIndex(item => item && item.profileId === p.profileId);
+          if (listIdx !== -1) {
+            targetList[listIdx] = buildPlayerStatsFromProfileAndMatches(
+              targetList[listIdx].profile,
+              leaderboardId,
+              matches,
+              true
+            );
+          }
+        });
+
+        syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+        renderCurrentView();
+        if (i + batchSize < toHydrate.length) {
+          await new Promise(r => setTimeout(r, 180));
+        }
+      }
+    }
+
+    // Priorizamos la solapa que el usuario está viendo actualmente
+    const prioritizeTeam = state.currentTab === 'rm_team' ||
+      (state.currentTab === 'weekly' && state.weeklyMode === 'rm_team') ||
+      (state.currentTab === 'civs' && state.civsMode === 'rm_team');
+
+    if (prioritizeTeam) {
+      await hydrateActiveLeaderboardMatches(state.playersDataTeam, CONFIG.LEADERBOARDS.RM_TEAM);
+      await hydrateActiveLeaderboardMatches(state.playersData1v1, CONFIG.LEADERBOARDS.RM_1V1);
+    } else {
+      await hydrateActiveLeaderboardMatches(state.playersData1v1, CONFIG.LEADERBOARDS.RM_1V1);
+      await hydrateActiveLeaderboardMatches(state.playersDataTeam, CONFIG.LEADERBOARDS.RM_TEAM);
+    }
   } catch (err) {
     console.error('Error cargando datos de jugadores:', err);
   } finally {
-    state.isLoading = false;
-    renderCurrentView();
+    if (myGen === state.loadGeneration) {
+      state.isLoading = false;
+      renderCurrentView();
+    }
   }
 }
 
@@ -316,7 +400,8 @@ function renderCurrentView() {
       elements.contentArea,
       onCardClick,
       onRemovePlayer,
-      state.eloSortBy
+      state.eloSortBy,
+      CONFIG.LEADERBOARDS.RM_1V1
     );
   } else if (state.currentTab === 'rm_team') {
     elements.contentArea.className = 'cards-grid';
@@ -325,7 +410,8 @@ function renderCurrentView() {
       elements.contentArea,
       onCardClick,
       onRemovePlayer,
-      state.eloSortBy
+      state.eloSortBy,
+      CONFIG.LEADERBOARDS.RM_TEAM
     );
   } else if (state.currentTab === 'weekly') {
     elements.contentArea.className = '';
@@ -345,9 +431,40 @@ function renderCurrentView() {
 }
 
 /**
- * Abre el modal con las estadísticas de un jugador
+ * Abre el modal con las estadísticas de un jugador (carga su historial bajo demanda si estaba inactivo)
  */
-function onCardClick(player) {
+async function onCardClick(player) {
+  if (!player) return;
+
+  if (!player.matchesLoaded) {
+    elements.modalContainer.innerHTML = `
+      <button class="modal-close" id="modalCloseBtn">&times;</button>
+      <div class="loading-box" style="padding: 40px 20px;">
+        <div class="spinner"></div>
+        <p>Cargando historial de ${player.name}...</p>
+      </div>
+    `;
+    elements.modalOverlay.classList.add('active');
+    const closeBtn = document.getElementById('modalCloseBtn');
+    if (closeBtn) {
+      closeBtn.onclick = () => elements.modalOverlay.classList.remove('active');
+    }
+
+    const fullStats = await getPlayerStats(player.profileId, player.leaderboardId, false, true);
+    if (fullStats) {
+      const targetList = player.leaderboardId === CONFIG.LEADERBOARDS.RM_TEAM
+        ? state.playersDataTeam
+        : state.playersData1v1;
+      const idx = targetList.findIndex(p => p && p.profileId === player.profileId);
+      if (idx !== -1) {
+        targetList[idx] = fullStats;
+        syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+      }
+      showPlayerModal(fullStats, elements.modalContainer, elements.modalOverlay);
+      return;
+    }
+  }
+
   showPlayerModal(player, elements.modalContainer, elements.modalOverlay);
 }
 
@@ -364,7 +481,7 @@ async function handlePlayerProfileClick(profileId, leaderboardId = 'rm_1v1') {
   const found = pool.find(p => p && p.profileId === profileId) || altPool.find(p => p && p.profileId === profileId);
 
   if (found) {
-    showPlayerModal(found, elements.modalContainer, elements.modalOverlay);
+    await onCardClick(found);
     return;
   }
 
@@ -382,7 +499,7 @@ async function handlePlayerProfileClick(profileId, leaderboardId = 'rm_1v1') {
     closeBtn.onclick = () => elements.modalOverlay.classList.remove('active');
   }
 
-  const stats = await getPlayerStats(profileId, targetLb);
+  const stats = await getPlayerStats(profileId, targetLb, false, true);
   if (stats) {
     showPlayerModal(stats, elements.modalContainer, elements.modalOverlay);
   } else {
@@ -543,31 +660,46 @@ async function onRemovePlayer(profileId) {
 }
 
 /**
- * Polling para chequear partidas en vivo periódicamente
+ * Polling liviano para chequear partidas en vivo cada 30s (1 sola petición grupal).
+ * Solo refresca estadísticas individuales si un jugador acaba de terminar su partida en vivo.
  */
 function startPolling() {
   if (state.pollTimer) clearInterval(state.pollTimer);
   state.pollTimer = setInterval(async () => {
-    console.log('🔄 Verificando estado en vivo de jugadores...');
     try {
+      // Recordamos quiénes estaban jugando antes de esta consulta
+      const prevPlayingIds = new Set();
+      [...state.playersData1v1, ...state.playersDataTeam].forEach(p => {
+        if (p && p.isPlayingNow) prevPlayingIds.add(p.profileId);
+      });
+
+      // 1 sola llamada grupal para ver partidas en vivo actuales
       const liveMatches = await fetchGroupLiveMatches(state.playerIds);
       state.liveMatches = liveMatches || [];
+      syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
 
-      const data1v1 = [];
-      const dataTeam = [];
-      const batchSize = 6;
-      for (let i = 0; i < state.playerIds.length; i += batchSize) {
-        const batchIds = state.playerIds.slice(i, i + batchSize);
-        const [b1v1, bTeam] = await Promise.all([
-          Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, true))),
-          Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, true)))
+      // Si algún jugador que estaba en vivo terminó su partida, refrescamos únicamente a ese jugador
+      const nowPlayingIds = new Set();
+      [...state.playersData1v1, ...state.playersDataTeam].forEach(p => {
+        if (p && p.isPlayingNow) nowPlayingIds.add(p.profileId);
+      });
+
+      const finishedPlayingIds = [...prevPlayingIds].filter(id => !nowPlayingIds.has(id));
+      for (const pid of finishedPlayingIds) {
+        const [updated1v1, updatedTeam] = await Promise.all([
+          getPlayerStats(pid, CONFIG.LEADERBOARDS.RM_1V1, true),
+          getPlayerStats(pid, CONFIG.LEADERBOARDS.RM_TEAM, true)
         ]);
-        data1v1.push(...b1v1.filter(Boolean));
-        dataTeam.push(...bTeam.filter(Boolean));
+        if (updated1v1) {
+          const idx1 = state.playersData1v1.findIndex(p => p && p.profileId === pid);
+          if (idx1 !== -1) state.playersData1v1[idx1] = updated1v1;
+        }
+        if (updatedTeam) {
+          const idxT = state.playersDataTeam.findIndex(p => p && p.profileId === pid);
+          if (idxT !== -1) state.playersDataTeam[idxT] = updatedTeam;
+        }
       }
 
-      state.playersData1v1 = data1v1;
-      state.playersDataTeam = dataTeam;
       syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
       renderCurrentView();
     } catch (err) {

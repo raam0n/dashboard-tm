@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js?v=20261029a';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029b';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -25,17 +25,24 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
     }
   });
 
+  const nowSec = Date.now() / 1000;
+  function isMatchValidLive(m) {
+    if (!m || m.abandoned || m.status === 'abandoned' || m.finished) return false;
+    if (!m.started) return false;
+    return (nowSec - m.started) < MAX_LIVE_DURATION_SEC;
+  }
+
   // Unificamos las partidas en curso directas del grupo + las detectadas por jugador y deduplicamos por matchId
   const uniqueMatchesMap = new Map();
   (extraLiveMatches || []).forEach(m => {
-    if (!m) return;
+    if (!isMatchValidLive(m)) return;
     const key = m.matchId || `${m.leaderboardId}_${m.started}_${m.mapName}`;
     if (!uniqueMatchesMap.has(key)) {
       uniqueMatchesMap.set(key, m);
     }
   });
 
-  const playingPlayers = validPlayers.filter(p => p.isPlayingNow && p.ongoingMatch);
+  const playingPlayers = validPlayers.filter(p => p.isPlayingNow && isMatchValidLive(p.ongoingMatch));
   playingPlayers.forEach(p => {
     const m = p.ongoingMatch;
     const key = m.matchId || `${m.leaderboardId}_${m.started}_${m.mapName}_${p.profileId}`;
@@ -177,27 +184,41 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
 }
 
 /**
- * Renderiza la grilla de tarjetas de jugadores
+ * Renderiza la grilla de tarjetas de jugadores (solo activos en el último mes)
+ * y debajo la sección de inactivos (> 30 días sin jugar ese modo), igual que en Winrate Semanal.
  */
-export function renderPlayersGrid(playersData, container, onCardClick, onRemovePlayer, sortBy = 'current') {
-  // Filtramos los válidos y ordenamos descendentemente por currentElo o maxElo según corresponda
-  const sorted = [...playersData.filter(Boolean)].sort((a, b) => {
+export function renderPlayersGrid(playersData, container, onCardClick, onRemovePlayer, sortBy = 'current', leaderboardId = 'rm_1v1') {
+  const validPlayers = playersData.filter(Boolean);
+
+  if (validPlayers.length === 0) {
+    container.innerHTML = `<div class="loading-box"><p>No hay datos de jugadores cargados.</p></div>`;
+    return;
+  }
+
+  const sortComparator = (a, b) => {
     if (sortBy === 'max') {
       if (b.maxElo !== a.maxElo) return b.maxElo - a.maxElo;
       return b.currentElo - a.currentElo;
     }
     if (b.currentElo !== a.currentElo) return b.currentElo - a.currentElo;
     return b.maxElo - a.maxElo;
-  });
+  };
 
-  if (sorted.length === 0) {
-    container.innerHTML = `<div class="loading-box"><p>No hay datos de jugadores cargados.</p></div>`;
-    return;
-  }
+  // Separamos activos del último mes vs inactivos (> 30 días sin partidas en este modo)
+  const activePlayers = [...validPlayers.filter(p => p.isActiveLastMonth)].sort(sortComparator);
+  const inactivePlayers = [...validPlayers.filter(p => !p.isActiveLastMonth)].sort((a, b) => b.currentElo - a.currentElo);
 
   container.innerHTML = '';
 
-  sorted.forEach((player, index) => {
+  if (activePlayers.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.className = 'loading-box';
+    emptyMsg.style.width = '100%';
+    emptyMsg.innerHTML = `<p>No hay jugadores con partidas registradas en los últimos 30 días para este modo.</p>`;
+    container.appendChild(emptyMsg);
+  }
+
+  activePlayers.forEach((player, index) => {
     const rank = index + 1;
     let rankClass = '';
     let stampClass = 'stamp-other';
@@ -233,16 +254,20 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
     const recentMatchesHtml = player.matches.slice(0, 10).map((m) => {
       const civName = m.player?.civ || 'britons';
       const isOngoing = m.status === 'ongoing';
+      const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
       const isWon = m.player?.won === true;
       const mapName = m.mapName || 'Unknown Map';
 
       let borderClass = 'civ-loss';
       if (isOngoing) borderClass = 'civ-ongoing';
+      else if (isAbandoned) borderClass = 'civ-abandoned';
       else if (isWon) borderClass = 'civ-win';
 
       const tooltip = isOngoing
         ? `${civName} • Jugando ahora en ${mapName}`
-        : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
+        : isAbandoned
+          ? `${civName} • Abandonada en ${mapName}`
+          : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
 
       const mapBoxHtml = m.mapImageUrl
         ? `<img src="${m.mapImageUrl}" class="match-map-icon" alt="${mapName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -273,6 +298,10 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
       `;
     }).join('');
 
+    const emptyMatchesMsg = !player.matchesLoaded
+      ? '<span style="font-size:0.8rem; color:#888;">Cargando historial de partidas...</span>'
+      : '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>';
+
     const flagUrl = getFlagUrl(player.country);
     const isCivsExpanded = expandedCardsCivs.has(player.profileId);
 
@@ -299,7 +328,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
           <span>Last Matches</span>
         </button>
         <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
-          ${recentMatchesHtml || '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>'}
+          ${recentMatchesHtml || emptyMatchesMsg}
         </div>
       </div>
       <button class="remove-player-btn" title="Quitar jugador">×</button>
@@ -336,23 +365,59 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
 
     container.appendChild(card);
   });
+
+  // Sección inferior de jugadores inactivos en el último mes (mismo formato que en Winrate Semanal)
+  if (inactivePlayers.length > 0) {
+    const modeLabel = leaderboardId === 'rm_team' ? 'RM Team' : 'RM 1vs1';
+    const inactiveSection = document.createElement('div');
+    inactiveSection.className = 'inactive-weekly-section inactive-ranking-section';
+    inactiveSection.innerHTML = `
+      <div class="inactive-weekly-header">
+        <h3>💤 Jugadores sin partidas el último mes (${inactivePlayers.length})</h3>
+        <span>0 partidas registradas en ${modeLabel} en los últimos 30 días</span>
+      </div>
+      <div class="inactive-players-grid">
+        ${inactivePlayers.map(p => `
+          <div class="inactive-player-chip is-clickable" data-profile-id="${p.profileId}" title="Click para ver perfil e historial de ${p.name}">
+            <img src="${getFlagUrl(p.country)}" class="inactive-player-flag" alt="${p.country}">
+            <div class="inactive-player-info">
+              <span class="inactive-player-name">${p.name} <small>(${p.currentElo})</small></span>
+              <span class="inactive-player-last">Últ. partida: ${p.lastMatchDate || 'Sin registro'}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    inactiveSection.querySelectorAll('.inactive-player-chip[data-profile-id]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const pid = parseInt(chip.dataset.profileId, 10);
+        const targetPlayer = inactivePlayers.find(p => p.profileId === pid);
+        if (targetPlayer && onCardClick) {
+          onCardClick(targetPlayer);
+        }
+      });
+    });
+
+    container.appendChild(inactiveSection);
+  }
 }
 
 /**
  * Muestra el modal con los detalles completos del jugador
  */
 export function showPlayerModal(player, modalContainer, modalOverlay, previousPlayers = []) {
-  // Calculamos estadísticas por civilización
+  // Calculamos estadísticas por civilización (excluyendo partidas en curso o abandonadas)
   const civStats = {};
   player.matches.forEach(m => {
-    if (m.status === 'ongoing') return;
+    if (m.status !== 'complete' || typeof m.player?.won !== 'boolean') return;
     const civ = m.player?.civ;
     if (!civ) return;
     if (!civStats[civ]) {
       civStats[civ] = { total: 0, wins: 0, losses: 0 };
     }
     civStats[civ].total += 1;
-    if (m.player?.won) civStats[civ].wins += 1;
+    if (m.player.won) civStats[civ].wins += 1;
     else civStats[civ].losses += 1;
   });
 
@@ -378,15 +443,20 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
   // Filas de partidas recientes
   const matchesRowsHtml = player.matches.map(m => {
     const isOngoing = m.status === 'ongoing';
+    const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
     const isWon = m.player?.won === true;
     const opponentsList = m.opponents && m.opponents.length > 0 ? m.opponents : [];
     const teammatesList = m.teammates && m.teammates.length > 0 ? m.teammates : [];
     const dateStr = m.started ? new Date(m.started * 1000).toLocaleDateString() : '-';
 
-    let resultHtml = isOngoing ? '<span class="red" style="font-weight:bold;">En curso...</span>' : (isWon ? '<span class="green" style="font-weight:bold;">Victoria</span>' : '<span class="red" style="font-weight:bold;">Derrota</span>');
+    let resultHtml = isOngoing
+      ? '<span class="red" style="font-weight:bold;">En curso...</span>'
+      : isAbandoned
+        ? '<span style="color:#9ca3af; font-weight:bold;">Abandonada</span>'
+        : (isWon ? '<span class="green" style="font-weight:bold;">Victoria</span>' : '<span class="red" style="font-weight:bold;">Derrota</span>');
 
     const eloChange = m.player?.ratingDiff;
-    const eloDiffStr = eloChange != null ? (eloChange > 0 ? `+${eloChange}` : `${eloChange}`) : '-';
+    const eloDiffStr = eloChange != null && !isAbandoned ? (eloChange > 0 ? `+${eloChange}` : `${eloChange}`) : '-';
     const eloClass = eloChange > 0 ? 'green' : (eloChange < 0 ? 'red' : '');
 
     function renderPlayerChip(p, isTeammate = false) {
@@ -492,9 +562,6 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
         </div>
       </div>
     </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 2. Abajo las Civilizaciones Jugadas Recientemente (Colapsable) -->
     <div class="modal-collapsible-section">
@@ -555,7 +622,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
         modalOverlay.classList.remove('active');
       };
 
-      const playerStats = await getPlayerStats(pid, player.leaderboardId);
+      const playerStats = await getPlayerStats(pid, player.leaderboardId, false, true);
       if (playerStats) {
         showPlayerModal(playerStats, modalContainer, modalOverlay, [...previousPlayers, player]);
       } else {

@@ -1,4 +1,4 @@
-import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261029a';
+import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261029b';
 
 /**
  * Renderiza la vista de Métricas Semanales con toggle entre RM 1v1 y RM Team
@@ -10,8 +10,10 @@ export function renderWeeklyView(playersData, container, currentMode = 'rm_1v1',
   const toDateStr = formatDateDDMMYYYY(nowSec);
 
   const weeklyStats = playersData.filter(Boolean).map(player => {
-    // Filtramos partidas de los últimos 7 días
-    const weekMatches = (player.matches || []).filter(m => m.started && m.started >= oneWeekAgo && m.status !== 'ongoing');
+    // Filtramos partidas completadas de los últimos 7 días (excluyendo en curso y abandonadas)
+    const weekMatches = (player.matches || []).filter(
+      m => m.started && m.started >= oneWeekAgo && m.status === 'complete' && typeof m.player?.won === 'boolean'
+    );
     const total = weekMatches.length;
     const wins = weekMatches.filter(m => m.player?.won).length;
     const losses = total - wins;

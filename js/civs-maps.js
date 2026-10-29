@@ -1,4 +1,4 @@
-import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029a';
+import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029b';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 
@@ -15,7 +15,7 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
   const allMatches = [];
   playersData.filter(Boolean).forEach(p => {
     (p.matches || []).forEach(m => {
-      if (m.status !== 'ongoing' && m.started && m.started >= oneWeekAgo) {
+      if (m.status === 'complete' && typeof m.player?.won === 'boolean' && m.started && m.started >= oneWeekAgo) {
         allMatches.push(m);
       }
     });

@@ -709,6 +709,11 @@ a.last-match-col:hover .match-map-frame {
   animation: pulse 1.2s infinite;
 }
 
+.civ-abandoned {
+  border: 2.5px solid #6b7280;
+  opacity: 0.72;
+}
+
 /* Botón quitar jugador */
 .remove-player-btn {
   position: absolute;
@@ -1199,11 +1204,21 @@ a.last-match-col:hover .match-map-frame {
   border-radius: 6px;
 }
 
-/* Sección de jugadores inactivos en Winrate Semanal */
+/* Sección de jugadores inactivos en Winrate Semanal y Rankings (RM 1v1 / RM Team) */
 .inactive-weekly-section {
   margin-top: 28px;
   padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.inactive-ranking-section {
+  width: 100%;
+  background: #181a1f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-top: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
 }
 
 .inactive-weekly-header {
@@ -1240,6 +1255,18 @@ a.last-match-col:hover .match-map-frame {
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   opacity: 0.82;
+}
+
+.inactive-player-chip.is-clickable {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inactive-player-chip.is-clickable:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.18);
+  opacity: 1;
+  transform: translateY(-1px);
 }
 
 .inactive-player-flag {
