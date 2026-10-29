@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=20261028c';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -7,12 +7,13 @@ import {
   saveActivePlayerIds, 
   getPlayerStats,
   fetchProfile,
+  fetchGroupLiveMatches,
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp
-} from './api.js';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js';
-import { renderWeeklyView } from './weekly.js';
-import { renderCivsAndMapsView } from './civs-maps.js';
+} from './api.js?v=20261028c';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261028c';
+import { renderWeeklyView } from './weekly.js?v=20261028c';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261028c';
 
 // Estado global de la aplicación
 const state = {
@@ -22,6 +23,7 @@ const state = {
   playerIds: getActivePlayerIds(),
   playersData1v1: [],
   playersDataTeam: [],
+  liveMatches: [],
   isLoading: false,
   pollTimer: null
 };
@@ -195,18 +197,33 @@ function setupEventListeners() {
 }
 
 /**
- * Sincroniza el estado "en vivo" entre 1v1 y Team para que las tarjetas muestren "Live now"
- * sin importar en qué modo esté jugando el jugador actualmente.
+ * Sincroniza el estado "en vivo" entre 1v1, Team y la consulta grupal de partidas en curso
+ * para que las tarjetas muestren "Live now" sin importar en qué modo esté jugando el jugador.
  */
-function syncPlayingState(list1v1, listTeam) {
+function syncPlayingState(list1v1, listTeam, groupLiveMatches = []) {
   const liveMap = new Map();
+
+  // Primero tomamos todas las partidas en curso de la consulta grupal directa
+  (groupLiveMatches || []).forEach(m => {
+    if (!m || !Array.isArray(m.allPlayers)) return;
+    m.allPlayers.forEach(p => {
+      if (p && p.profileId && !liveMap.has(p.profileId)) {
+        liveMap.set(p.profileId, m);
+      }
+    });
+  });
+
+  // También sumamos cualquier partida en curso detectada individualmente
   [...list1v1, ...listTeam].forEach(p => {
     if (p && p.isPlayingNow && p.ongoingMatch) {
       liveMap.set(p.profileId, p.ongoingMatch);
     }
   });
+
+  // Aplicamos el estado a las tarjetas de 1v1 y Team
   [...list1v1, ...listTeam].forEach(p => {
-    if (p && !p.isPlayingNow && liveMap.has(p.profileId)) {
+    if (!p) return;
+    if (liveMap.has(p.profileId)) {
       p.isPlayingNow = true;
       p.ongoingMatch = liveMap.get(p.profileId);
     }
@@ -226,17 +243,31 @@ async function loadAllData(forceRefresh = false) {
   `;
 
   try {
-    const promises1v1 = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, forceRefresh));
-    const promisesTeam = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, forceRefresh));
+    // 1. Consultamos primero y en 1 sola llamada todas las partidas en curso del grupo
+    fetchGroupLiveMatches(state.playerIds).then(liveMatches => {
+      state.liveMatches = liveMatches || [];
+      const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
+      renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds);
+    });
 
-    const [data1v1, dataTeam] = await Promise.all([
-      Promise.all(promises1v1),
-      Promise.all(promisesTeam)
-    ]);
+    // 2. Cargamos los jugadores en lotes de a 6 para evitar rate-limiting de Cloudflare cuando son muchos jugadores
+    const data1v1 = [];
+    const dataTeam = [];
+    const batchSize = 6;
 
-    state.playersData1v1 = data1v1.filter(Boolean);
-    state.playersDataTeam = dataTeam.filter(Boolean);
-    syncPlayingState(state.playersData1v1, state.playersDataTeam);
+    for (let i = 0; i < state.playerIds.length; i += batchSize) {
+      const batchIds = state.playerIds.slice(i, i + batchSize);
+      const [batch1v1, batchTeam] = await Promise.all([
+        Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, forceRefresh))),
+        Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, forceRefresh)))
+      ]);
+      data1v1.push(...batch1v1.filter(Boolean));
+      dataTeam.push(...batchTeam.filter(Boolean));
+    }
+
+    state.playersData1v1 = data1v1;
+    state.playersDataTeam = dataTeam;
+    syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
   } catch (err) {
     console.error('Error cargando datos de jugadores:', err);
   } finally {
@@ -255,7 +286,7 @@ function renderCurrentView() {
 
   // Siempre actualizamos el banner de live con las partidas que estén en curso (en 1v1 o Team)
   const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
-  renderLiveBanner(allCurrent, elements.liveBannerContainer);
+  renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds);
 
   if (state.isLoading) return;
 
@@ -300,14 +331,31 @@ function onCardClick(player) {
 }
 
 /**
+ * Convierte una fecha dd/mm/yyyy en un entero comparable YYYYMMDD (o 0 si no es válida)
+ */
+function dateStrToSortableInt(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return 0;
+  const m = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!m) return 0;
+  return parseInt(`${m[3]}${m[2]}${m[1]}`, 10) || 0;
+}
+
+/**
  * Ordena los elementos del checklist en el DOM por fecha de última partida descendente
  */
 function sortChecklistItemsDom() {
   const items = Array.from(elements.playersChecklistContainer.querySelectorAll('.player-check-item'));
   items.sort((a, b) => {
+    const dateTextA = a.querySelector('.player-check-lastmatch')?.textContent || '';
+    const dateTextB = b.querySelector('.player-check-lastmatch')?.textContent || '';
+    const dayIntA = dateStrToSortableInt(dateTextA);
+    const dayIntB = dateStrToSortableInt(dateTextB);
+    if (dayIntB !== dayIntA) return dayIntB - dayIntA;
+
     const tsA = Number(a.dataset.lastmatchTs ?? -1);
     const tsB = Number(b.dataset.lastmatchTs ?? -1);
     if (tsB !== tsA) return tsB - tsA;
+
     const nameA = (a.querySelector('.player-check-name')?.textContent || '').toLowerCase();
     const nameB = (b.querySelector('.player-check-name')?.textContent || '').toLowerCase();
     return nameA.localeCompare(nameB);
@@ -333,22 +381,27 @@ function openManagePlayersModal() {
     if (p && p.profileId) {
       if (p.name) nameMap.set(p.profileId, p.name);
       const ts = p.overallLastMatchTimestamp || 0;
-      if (!lastMatchTsMap.has(p.profileId) || ts > lastMatchTsMap.get(p.profileId)) {
+      const dateStr = p.overallLastMatchDate || p.lastMatchDate || 'Sin registro';
+      const prevTs = lastMatchTsMap.get(p.profileId) ?? -1;
+      if (ts > prevTs) {
         lastMatchTsMap.set(p.profileId, ts);
-      }
-      if (p.overallLastMatchDate && !lastMatchMap.has(p.profileId)) {
-        lastMatchMap.set(p.profileId, p.overallLastMatchDate);
-      } else if (p.lastMatchDate && !lastMatchMap.has(p.profileId)) {
-        lastMatchMap.set(p.profileId, p.lastMatchDate);
+        lastMatchMap.set(p.profileId, dateStr);
+      } else if (!lastMatchMap.has(p.profileId)) {
+        lastMatchMap.set(p.profileId, dateStr);
       }
     }
   });
 
   // Ordenamos inicialmente por fecha de última partida descendente
   const sortedIds = [...allConfigured].sort((a, b) => {
+    const dayIntA = dateStrToSortableInt(lastMatchMap.get(a));
+    const dayIntB = dateStrToSortableInt(lastMatchMap.get(b));
+    if (dayIntB !== dayIntA) return dayIntB - dayIntA;
+
     const tsA = lastMatchTsMap.get(a) ?? -1;
     const tsB = lastMatchTsMap.get(b) ?? -1;
     if (tsB !== tsA) return tsB - tsA;
+
     const nameA = (nameMap.get(a) || '').toLowerCase();
     const nameB = (nameMap.get(b) || '').toLowerCase();
     return nameA.localeCompare(nameB);
@@ -370,7 +423,7 @@ function openManagePlayersModal() {
     `;
   }).join('');
 
-  // Si algún jugador (ej. destildado) no tenía su perfil en memoria, lo consultamos y reordenamos por fecha descendente
+  // Si algún jugador (ej. destildado o aún cargando) no tenía su perfil en memoria, lo consultamos y reordenamos por fecha descendente
   sortedIds.forEach(async (id) => {
     if (!lastMatchMap.has(id)) {
       const prof = await fetchProfile(id, false);
@@ -436,16 +489,25 @@ function startPolling() {
   state.pollTimer = setInterval(async () => {
     console.log('🔄 Verificando estado en vivo de jugadores...');
     try {
-      // Actualizamos en segundo plano tanto 1v1 como Team
-      const promises1v1 = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, true));
-      const promisesTeam = state.playerIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, true));
-      const [res1v1, resTeam] = await Promise.all([
-        Promise.all(promises1v1),
-        Promise.all(promisesTeam)
-      ]);
-      state.playersData1v1 = res1v1.filter(Boolean);
-      state.playersDataTeam = resTeam.filter(Boolean);
-      syncPlayingState(state.playersData1v1, state.playersDataTeam);
+      const liveMatches = await fetchGroupLiveMatches(state.playerIds);
+      state.liveMatches = liveMatches || [];
+
+      const data1v1 = [];
+      const dataTeam = [];
+      const batchSize = 6;
+      for (let i = 0; i < state.playerIds.length; i += batchSize) {
+        const batchIds = state.playerIds.slice(i, i + batchSize);
+        const [b1v1, bTeam] = await Promise.all([
+          Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_1V1, true))),
+          Promise.all(batchIds.map(id => getPlayerStats(id, CONFIG.LEADERBOARDS.RM_TEAM, true)))
+        ]);
+        data1v1.push(...b1v1.filter(Boolean));
+        dataTeam.push(...bTeam.filter(Boolean));
+      }
+
+      state.playersData1v1 = data1v1;
+      state.playersDataTeam = dataTeam;
+      syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
       renderCurrentView();
     } catch (err) {
       console.warn('Error en polling:', err);

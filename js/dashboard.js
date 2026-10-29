@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js';
+import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js?v=20261028c';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -7,11 +7,14 @@ const expandedCardsCivs = new Set();
 /**
  * Renderiza el banner superior de "Live now" (soporta múltiples partidas simultáneas y partidas en equipo 2v2/3v3/4v4)
  */
-export function renderLiveBanner(playersData, container) {
+export function renderLiveBanner(playersData, container, extraLiveMatches = [], trackedIdsList = []) {
   if (liveTimerInterval) clearInterval(liveTimerInterval);
 
   const validPlayers = playersData.filter(Boolean);
-  const trackedProfileIds = new Set(validPlayers.map(p => p.profileId));
+  const trackedProfileIds = new Set([
+    ...trackedIdsList,
+    ...validPlayers.map(p => p.profileId)
+  ]);
   const playerEloMap = new Map();
   validPlayers.forEach(p => {
     if (p.profileId && p.currentElo) {
@@ -22,9 +25,17 @@ export function renderLiveBanner(playersData, container) {
     }
   });
 
-  // Buscamos jugadores con partida en curso y deduplicamos por matchId
-  const playingPlayers = validPlayers.filter(p => p.isPlayingNow && p.ongoingMatch);
+  // Unificamos las partidas en curso directas del grupo + las detectadas por jugador y deduplicamos por matchId
   const uniqueMatchesMap = new Map();
+  (extraLiveMatches || []).forEach(m => {
+    if (!m) return;
+    const key = m.matchId || `${m.leaderboardId}_${m.started}_${m.mapName}`;
+    if (!uniqueMatchesMap.has(key)) {
+      uniqueMatchesMap.set(key, m);
+    }
+  });
+
+  const playingPlayers = validPlayers.filter(p => p.isPlayingNow && p.ongoingMatch);
   playingPlayers.forEach(p => {
     const m = p.ongoingMatch;
     const key = m.matchId || `${m.leaderboardId}_${m.started}_${m.mapName}_${p.profileId}`;

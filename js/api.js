@@ -1,7 +1,8 @@
-import { CONFIG } from './config.js';
+import { CONFIG } from './config.js?v=20261028c';
 
 // Cache para evitar peticiones redundantes
 const profileCache = new Map();
+const profileInFlight = new Map();
 const matchesCache = new Map();
 
 /**
@@ -10,6 +11,7 @@ const matchesCache = new Map();
 export function getCivIconUrl(civName) {
   if (!civName) return 'assets/icons/logo-128.png';
   const clean = civName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean === 'inca') return 'assets/incas.png';
   return `assets/${clean}.png`;
 }
 
@@ -90,22 +92,68 @@ export function saveActivePlayerIds(ids) {
 }
 
 /**
- * Obtiene el perfil completo del jugador
+ * Obtiene el perfil completo del jugador (con deduplicación de peticiones en curso)
  */
 export async function fetchProfile(profileId, forceRefresh = false) {
   if (!forceRefresh && profileCache.has(profileId)) {
     return profileCache.get(profileId);
   }
+  if (profileInFlight.has(profileId)) {
+    return profileInFlight.get(profileId);
+  }
 
+  const reqPromise = (async () => {
+    try {
+      const res = await fetch(`${CONFIG.API_BASE_URL}/profiles/${profileId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      profileCache.set(profileId, data);
+      return data;
+    } catch (err) {
+      console.error(`Error al obtener perfil ${profileId}:`, err);
+      return profileCache.get(profileId) || null;
+    } finally {
+      profileInFlight.delete(profileId);
+    }
+  })();
+
+  profileInFlight.set(profileId, reqPromise);
+  return reqPromise;
+}
+
+/**
+ * Obtiene en una sola consulta todas las partidas en curso (live) de la lista activa de jugadores
+ */
+export async function fetchGroupLiveMatches(playerIds) {
+  if (!Array.isArray(playerIds) || playerIds.length === 0) return [];
   try {
-    const res = await fetch(`${CONFIG.API_BASE_URL}/profiles/${profileId}`);
+    const idsParam = playerIds.join(',');
+    const res = await fetch(`${CONFIG.API_BASE_URL}/matches?per_page=25&profile_ids=${idsParam}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    profileCache.set(profileId, data);
-    return data;
+    const rawMatches = data.matches || [];
+    const nowSec = Date.now() / 1000;
+
+    return rawMatches
+      .filter(m => !m.finished && m.started && (nowSec - new Date(m.started).getTime() / 1000) < 14400)
+      .map(m => {
+        let groupPid = null;
+        if (Array.isArray(m.teams)) {
+          for (const t of m.teams) {
+            for (const p of (t.players || [])) {
+              if (playerIds.includes(p.profileId)) {
+                groupPid = p.profileId;
+                break;
+              }
+            }
+            if (groupPid) break;
+          }
+        }
+        return mapMatch(m, groupPid);
+      });
   } catch (err) {
-    console.error(`Error al obtener perfil ${profileId}:`, err);
-    return null;
+    console.error('Error al obtener partidas en vivo del grupo:', err);
+    return [];
   }
 }
 

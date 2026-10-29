@@ -1,4 +1,4 @@
-import { getCivIconUrl } from './api.js';
+import { getCivIconUrl } from './api.js?v=20261028c';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 
