@@ -384,7 +384,14 @@ body {
   gap: 6px;
   align-items: center;
   overflow-x: auto;
-  padding-bottom: 2px;
+  overflow-y: hidden;
+  padding: 4px 2px;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE / Edge */
+}
+
+.civs-icons-row::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 .civ-shield-icon {
@@ -395,10 +402,11 @@ body {
   object-fit: cover;
   transition: transform 0.15s ease;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
 }
 
 .civ-shield-icon:hover {
-  transform: scale(1.18);
+  transform: scale(1.15);
   z-index: 5;
 }
 

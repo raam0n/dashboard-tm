@@ -37,10 +37,10 @@ export function renderLiveBanner(playersData, container) {
     const secs = elapsedSec % 60;
     const durationStr = `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
 
-    const p1Civ = targetPlayer?.civ ? `<img src="${getCivIconUrl(targetPlayer.civ)}" class="live-civ-shield" title="${targetPlayer.civ}">` : '';
+    const p1Civ = targetPlayer?.civ ? `<img src="${getCivIconUrl(targetPlayer.civ)}" class="live-civ-shield" title="${targetPlayer.civ}" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
     const p1Flag = targetPlayer?.country ? `<img src="${getFlagUrl(targetPlayer.country)}" class="live-flag">` : '';
 
-    const p2Civ = opponent?.civ ? `<img src="${getCivIconUrl(opponent.civ)}" class="live-civ-shield" title="${opponent.civ}">` : '';
+    const p2Civ = opponent?.civ ? `<img src="${getCivIconUrl(opponent.civ)}" class="live-civ-shield" title="${opponent.civ}" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
     const p2Flag = opponent?.country ? `<img src="${getFlagUrl(opponent.country)}" class="live-flag">` : '';
 
     container.innerHTML = `
@@ -150,6 +150,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
           class="civ-shield-icon ${borderClass}" 
           title="${tooltip}"
           alt="${civName}"
+          onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
         />
       `;
     }).join('');
@@ -222,7 +223,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay) {
 
   const civsHtml = civList.map(c => `
     <div class="civ-stat-box">
-      <img src="${getCivIconUrl(c.name)}" alt="${c.name}">
+      <img src="${getCivIconUrl(c.name)}" alt="${c.name}" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">
       <div class="civ-stat-info">
         <span class="civ-stat-name">${c.name}</span>
         <span class="civ-stat-numbers">Total: ${c.total} (W: ${c.wins} / L: ${c.losses})</span>
@@ -244,7 +245,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay) {
     const eloDiffStr = eloChange != null ? (eloChange > 0 ? `+${eloChange}` : `${eloChange}`) : '-';
     const eloClass = eloChange > 0 ? 'green' : (eloChange < 0 ? 'red' : '');
 
-    const oppCiv = opponent?.civ ? `<img src="${getCivIconUrl(opponent.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;">` : '';
+    const oppCiv = opponent?.civ ? `<img src="${getCivIconUrl(opponent.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
 
     return `
       <tr>

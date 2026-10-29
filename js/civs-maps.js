@@ -51,7 +51,7 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
       <td><strong>#${idx + 1}</strong></td>
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
-          <img src="${getCivIconUrl(c.name)}" style="width:26px; height:26px; border-radius:50%;">
+          <img src="${getCivIconUrl(c.name)}" style="width:26px; height:26px; border-radius:50%;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">
           <strong>${c.name}</strong>
         </div>
       </td>
