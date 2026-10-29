@@ -12,18 +12,26 @@ import {
   fetchGroupBootstrap,
   buildPlayerStatsFromProfileAndMatches,
   getProfileOverallLastMatchDate,
-  getProfileOverallLastMatchTimestamp
+  getProfileOverallLastMatchTimestamp,
+  fetchGroupRecentMatches
 } from './api.js?v=20261029b';
 import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029b';
 import { renderWeeklyView } from './weekly.js?v=20261029b';
 import { renderCivsAndMapsView } from './civs-maps.js?v=20261029b';
+import { renderRecentMatchesView } from './history.js?v=20261029b';
 
 // Estado global de la aplicación
 const state = {
-  currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'weekly' | 'civs'
+  currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'history' | 'weekly' | 'civs'
   eloSortBy: 'current', // 'current' | 'max'
   weeklyMode: 'rm_1v1', // 'rm_1v1' | 'rm_team'
   civsMode: 'rm_1v1',   // 'rm_1v1' | 'rm_team'
+  recentMatchesRaw: [],
+  historyFilters: {
+    timeWindowHours: 48, // 48 horas por defecto
+    mode: 'all',         // 'all' | 'rm_1v1' | 'rm_team' | 'other'
+    excludedPlayerIds: [] // IDs a excluir del feed
+  },
   playerIds: getActivePlayerIds(),
   playersData1v1: [],
   playersDataTeam: [],
@@ -271,6 +279,7 @@ async function loadAllData(forceRefresh = false) {
     if (myGen !== state.loadGeneration) return;
 
     state.liveMatches = bootstrap.liveMatches || [];
+    state.recentMatchesRaw = bootstrap.groupMatches || [];
     state.playersData1v1 = bootstrap.initial1v1 || [];
     state.playersDataTeam = bootstrap.initialTeam || [];
     syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
@@ -412,6 +421,19 @@ function renderCurrentView() {
       onRemovePlayer,
       state.eloSortBy,
       CONFIG.LEADERBOARDS.RM_TEAM
+    );
+  } else if (state.currentTab === 'history') {
+    elements.contentArea.className = '';
+    renderRecentMatchesView(
+      state.recentMatchesRaw,
+      elements.contentArea,
+      state.playerIds,
+      handlePlayerProfileClick,
+      state.historyFilters,
+      (newFilters) => {
+        state.historyFilters = newFilters;
+        renderCurrentView();
+      }
     );
   } else if (state.currentTab === 'weekly') {
     elements.contentArea.className = '';
@@ -677,6 +699,16 @@ function startPolling() {
       const liveMatches = await fetchGroupLiveMatches(state.playerIds);
       state.liveMatches = liveMatches || [];
       syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+
+      // Si la solapa activa es 'history', refrescamos el feed en segundo plano
+      if (state.currentTab === 'history') {
+        fetchGroupRecentMatches(state.playerIds, 100).then(matches => {
+          if (matches && matches.length > 0) {
+            state.recentMatchesRaw = matches;
+            renderCurrentView();
+          }
+        }).catch(() => {});
+      }
 
       // Si algún jugador que estaba en vivo terminó su partida, refrescamos únicamente a ese jugador
       const nowPlayingIds = new Set();

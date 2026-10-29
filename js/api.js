@@ -18,6 +18,7 @@ loadProfilesCacheFromStorage();
  */
 function loadProfilesCacheFromStorage() {
   try {
+    if (typeof localStorage === 'undefined') return;
     const raw = localStorage.getItem(CONFIG.STORAGE_KEY_PROFILES_CACHE);
     if (!raw) return;
     const parsed = JSON.parse(raw);
@@ -38,6 +39,7 @@ function loadProfilesCacheFromStorage() {
  */
 function saveProfilesCacheToStorage() {
   try {
+    if (typeof localStorage === 'undefined') return;
     const obj = {};
     profileCache.forEach((prof, id) => {
       if (prof && prof.profileId) {
@@ -287,7 +289,7 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
     fetchWithRetry(`${CONFIG.API_BASE_URL}/profiles?per_page=100&profile_ids=${idsParam}`, 1)
       .then(r => r.json())
       .catch(e => { console.warn('Error batch profiles:', e); return { profiles: [] }; }),
-    fetchWithRetry(`${CONFIG.API_BASE_URL}/matches?per_page=50&profile_ids=${idsParam}`, 1)
+    fetchWithRetry(`${CONFIG.API_BASE_URL}/matches?per_page=100&profile_ids=${idsParam}`, 1)
       .then(r => r.json())
       .catch(e => { console.warn('Error batch matches:', e); return { matches: [] }; })
   ]);
@@ -432,10 +434,27 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
 
   return {
     liveMatches,
+    groupMatches: rawMatches,
     initial1v1,
     initialTeam,
     missingProfileIds
   };
+}
+
+/**
+ * Obtiene el listado de partidas recientes del grupo completo
+ */
+export async function fetchGroupRecentMatches(playerIds, count = 100) {
+  if (!Array.isArray(playerIds) || playerIds.length === 0) return [];
+  try {
+    const idsParam = playerIds.join(',');
+    const res = await fetchWithRetry(`${CONFIG.API_BASE_URL}/matches?per_page=${count}&profile_ids=${idsParam}`, 1);
+    const data = await res.json();
+    return data.matches || [];
+  } catch (err) {
+    console.error('Error al obtener partidas recientes del grupo:', err);
+    return [];
+  }
 }
 
 /**
