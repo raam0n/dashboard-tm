@@ -2023,6 +2023,27 @@ a.last-match-col:hover .match-map-frame {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
+.list-map-frame {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.list-map-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+}
+
+.list-map-fallback {
+  width: 20px;
+  height: 20px;
+}
+
 .col-actions {
   width: 40px;
   text-align: right;

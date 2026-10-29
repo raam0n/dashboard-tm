@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029e';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029f';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -240,42 +240,38 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
         rachaTextHtml = `<span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}${ptsText}</span>`;
       }
 
-      // Escudos de últimas 10 partidas compactos
-      const recentCivsHtml = player.matches.slice(0, 10).map((m) => {
+      // Íconos de los últimos 10 mapas jugados compactos
+      const recentMapsHtml = player.matches.slice(0, 10).map((m) => {
         const civName = m.player?.civ || 'britons';
         const isOngoing = m.status === 'ongoing';
         const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
         const isWon = m.player?.won === true;
         const mapName = m.mapName || 'Unknown Map';
 
-        let borderClass = 'civ-loss';
-        if (isOngoing) borderClass = 'civ-ongoing';
-        else if (isAbandoned) borderClass = 'civ-abandoned';
-        else if (isWon) borderClass = 'civ-win';
-
         const tooltip = isOngoing
-          ? `${civName} • Jugando ahora en ${mapName}`
+          ? `${mapName} (${civName}) • Jugando ahora`
           : isAbandoned
-            ? `${civName} • Abandonada en ${mapName}`
-            : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
+            ? `${mapName} (${civName}) • Abandonada`
+            : `${mapName} (${civName}) • ${isWon ? 'Victoria' : 'Derrota'}`;
 
         const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : '#';
+
+        const mapBoxHtml = m.mapImageUrl
+          ? `<img src="${m.mapImageUrl}" class="match-map-icon list-map-icon" alt="${mapName}" />
+             <div class="map-diamond-fallback list-map-fallback hidden"><span>?</span></div>`
+          : `<div class="map-diamond-fallback list-map-fallback"><span>?</span></div>`;
 
         return `
           <a
             href="${matchUrl}"
             target="_blank"
             rel="noopener noreferrer"
-            class="list-civ-link"
+            class="list-civ-link list-map-link"
             title="${tooltip} • Click para ver estadísticas en AoE2Companion"
-            onclick="event.stopPropagation();"
           >
-            <img
-              src="${getCivIconUrl(civName)}"
-              class="list-civ-shield ${borderClass}"
-              alt="${civName}"
-              onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
-            />
+            <div class="list-map-frame">
+              ${mapBoxHtml}
+            </div>
           </a>
         `;
       }).join('');
@@ -313,7 +309,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
           </td>
           <td class="col-recent-civs">
             <div class="list-civs-row">
-              ${recentCivsHtml || emptyMatchesMsg}
+              ${recentMapsHtml || emptyMatchesMsg}
             </div>
           </td>
           <td class="col-actions">
@@ -335,7 +331,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
               <th>Prom. (20)</th>
               <th>Racha</th>
               <th>Últ. Partida</th>
-              <th>Últimas Partidas (Civs)</th>
+              <th>Últimas Partidas (Mapas)</th>
               <th></th>
             </tr>
           </thead>

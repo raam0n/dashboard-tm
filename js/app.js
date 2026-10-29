@@ -15,7 +15,7 @@ import {
   getProfileOverallLastMatchTimestamp,
   fetchGroupRecentMatches
 } from './api.js?v=20261029e';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029e';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029f';
 import { renderWeeklyView } from './weekly.js?v=20261029e';
 import { renderCivsAndMapsView } from './civs-maps.js?v=20261029e';
 import { renderRecentMatchesView } from './history.js?v=20261029e';
