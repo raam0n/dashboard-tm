@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261028d';
+import { CONFIG } from './config.js?v=20261028e';
 
 // Cache para evitar peticiones redundantes
 const profileCache = new Map();

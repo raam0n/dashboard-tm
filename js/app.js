@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261028d';
+import { CONFIG } from './config.js?v=20261028e';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -10,10 +10,10 @@ import {
   fetchGroupLiveMatches,
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp
-} from './api.js?v=20261028d';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261028d';
-import { renderWeeklyView } from './weekly.js?v=20261028d';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261028d';
+} from './api.js?v=20261028e';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261028e';
+import { renderWeeklyView } from './weekly.js?v=20261028e';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261028e';
 
 // Estado global de la aplicación
 const state = {

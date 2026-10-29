@@ -1020,6 +1020,93 @@ body {
   margin-bottom: 0;
 }
 
+.weekly-period-badge {
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  color: #93c5fd;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+/* Sección de jugadores inactivos en Winrate Semanal */
+.inactive-weekly-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.inactive-weekly-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.inactive-weekly-header h3 {
+  font-size: 1.15rem;
+  color: #9ca3af;
+}
+
+.inactive-weekly-header span {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.inactive-players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.inactive-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  opacity: 0.82;
+}
+
+.inactive-player-flag {
+  width: 22px;
+  height: 15px;
+  border-radius: 2px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.inactive-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.inactive-player-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #d1d5db;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inactive-player-name small {
+  color: #60a5fa;
+  font-weight: 700;
+}
+
+.inactive-player-last {
+  font-size: 0.76rem;
+  color: #6b7280;
+}
+
 .mode-toggle-group {
   display: inline-flex;
   background: rgba(0, 0, 0, 0.4);

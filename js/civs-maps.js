@@ -1,15 +1,21 @@
-import { getCivIconUrl } from './api.js?v=20261028d';
+import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261028e';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 
 /**
- * Renderiza la vista de Top Civilizaciones y Mapas del grupo con toggle entre Civs/Mapas y RM 1v1/RM Team
+ * Renderiza la vista de Top Civilizaciones y Mapas del grupo (acumulado semanal - últimos 7 días)
+ * con toggle entre Civs/Mapas y RM 1v1/RM Team
  */
 export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_1v1', onModeChange) {
+  const nowSec = Date.now() / 1000;
+  const oneWeekAgo = nowSec - (7 * 24 * 60 * 60);
+  const fromDateStr = formatDateDDMMYYYY(oneWeekAgo);
+  const toDateStr = formatDateDDMMYYYY(nowSec);
+
   const allMatches = [];
   playersData.filter(Boolean).forEach(p => {
     (p.matches || []).forEach(m => {
-      if (m.status !== 'ongoing') {
+      if (m.status !== 'ongoing' && m.started && m.started >= oneWeekAgo) {
         allMatches.push(m);
       }
     });
@@ -33,7 +39,8 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
     }
 
     if (map) {
-      if (!mapsMap[map]) mapsMap[map] = { name: map, total: 0, wins: 0, losses: 0 };
+      if (!mapsMap[map]) mapsMap[map] = { name: map, mapImageUrl: m.mapImageUrl || '', total: 0, wins: 0, losses: 0 };
+      if (!mapsMap[map].mapImageUrl && m.mapImageUrl) mapsMap[map].mapImageUrl = m.mapImageUrl;
       mapsMap[map].total += 1;
       if (won) mapsMap[map].wins += 1;
       else mapsMap[map].losses += 1;
@@ -68,41 +75,51 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
     </tr>
   `).join('');
 
-  const mapRows = sortedMaps.map((m, idx) => `
-    <tr>
-      <td><strong>#${idx + 1}</strong></td>
-      <td><strong>${m.name}</strong></td>
-      <td>${m.total}</td>
-      <td><span class="green">${m.wins}W</span> / <span class="red">${m.losses}L</span></td>
-      <td>
-        <span class="${m.winRate >= 50 ? 'green' : 'red'}" style="font-weight:700;">${m.winRate.toFixed(1)}%</span>
-        <div class="progress-bar-bg" style="width:100px;">
-          <div class="progress-bar-fill" style="width:${m.winRate}%; background:${m.winRate >= 50 ? '#22c55e' : '#ef4444'};"></div>
-        </div>
-      </td>
-    </tr>
-  `).join('');
+  const mapRows = sortedMaps.map((m, idx) => {
+    const mapIconHtml = m.mapImageUrl
+      ? `<img src="${m.mapImageUrl}" style="width:28px; height:28px; object-fit:contain;" alt="${m.name}" onerror="this.style.display='none';">`
+      : '';
+    return `
+      <tr>
+        <td><strong>#${idx + 1}</strong></td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${mapIconHtml}
+            <strong>${m.name}</strong>
+          </div>
+        </td>
+        <td>${m.total}</td>
+        <td><span class="green">${m.wins}W</span> / <span class="red">${m.losses}L</span></td>
+        <td>
+          <span class="${m.winRate >= 50 ? 'green' : 'red'}" style="font-weight:700;">${m.winRate.toFixed(1)}%</span>
+          <div class="progress-bar-bg" style="width:100px;">
+            <div class="progress-bar-fill" style="width:${m.winRate}%; background:${m.winRate >= 50 ? '#22c55e' : '#ef4444'};"></div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
 
   const modeLabel = currentMode === 'rm_team' ? 'RM Team' : 'RM 1vs1';
   const modeSubtitle = currentMode === 'rm_team' 
-    ? 'Análisis acumulado de elecciones de civilización y mapas en partidas por equipos (RM Team).' 
-    : 'Análisis acumulado de elecciones de civilización y mapas en partidas individuales (RM 1vs1).';
+    ? `Acumulado semanal (últimos 7 días: ${fromDateStr} al ${toDateStr}) de elecciones de civilización y mapas en partidas por equipos (RM Team).` 
+    : `Acumulado semanal (últimos 7 días: ${fromDateStr} al ${toDateStr}) de elecciones de civilización y mapas en partidas individuales (RM 1vs1).`;
 
   const civSectionHtml = `
     <div>
-      <h3 style="color:#f59e0b; margin-bottom: 12px;">🛡️ Top Civilizaciones (${sortedCivs.length})</h3>
+      <h3 style="color:#f59e0b; margin-bottom: 12px;">🛡️ Top Civilizaciones de la Semana (${sortedCivs.length})</h3>
       <table class="matches-table">
         <thead>
           <tr>
             <th>#</th>
             <th>Civilización</th>
-            <th>Partidas</th>
+            <th>Partidas (7d)</th>
             <th>V/D</th>
             <th>Winrate</th>
           </tr>
         </thead>
         <tbody>
-          ${civRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de partidas para este modo</td></tr>'}
+          ${civRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin partidas registradas en los últimos 7 días para este modo</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -110,19 +127,19 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
 
   const mapSectionHtml = `
     <div>
-      <h3 style="color:#0099ff; margin-bottom: 12px;">🗺️ Rendimiento por Mapa (${sortedMaps.length})</h3>
+      <h3 style="color:#0099ff; margin-bottom: 12px;">🗺️ Rendimiento Semanal por Mapa (${sortedMaps.length})</h3>
       <table class="matches-table">
         <thead>
           <tr>
             <th>#</th>
             <th>Mapa</th>
-            <th>Partidas</th>
+            <th>Partidas (7d)</th>
             <th>V/D</th>
             <th>Winrate</th>
           </tr>
         </thead>
         <tbody>
-          ${mapRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de mapas para este modo</td></tr>'}
+          ${mapRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin mapas registrados en los últimos 7 días para este modo</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -132,7 +149,10 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
     <div class="view-container">
       <div class="view-header-row">
         <div>
-          <h2>🗺️ Civilizaciones y Mapas más Jugados (${modeLabel})</h2>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h2>🗺️ Civilizaciones y Mapas más Jugados (${modeLabel})</h2>
+            <span class="weekly-period-badge">📅 Acumulado Semanal (Últimos 7 días)</span>
+          </div>
           <p class="subtitle">${modeSubtitle}</p>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
