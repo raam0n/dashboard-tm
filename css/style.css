@@ -362,6 +362,25 @@ body {
   font-weight: 700;
 }
 
+/* Línea de última partida y racha entre Now y Last Played Civilizations */
+.card-last-match-row {
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.meta-separator {
+  color: #555;
+}
+
+.player-check-lastmatch {
+  color: #9ca3af;
+}
+
 /* Fila desplegable de civilizaciones jugadas en cada tarjeta */
 .card-civs-dropdown {
   margin-top: 2px;

@@ -180,6 +180,44 @@ function mapMatch(m, targetProfileId) {
 }
 
 /**
+ * Formatea un timestamp (en segundos) o string ISO a formato dd/mm/yyyy
+ */
+export function formatDateDDMMYYYY(val) {
+  if (!val) return 'Sin registro';
+  const d = typeof val === 'number' ? new Date(val * 1000) : new Date(val);
+  if (isNaN(d.getTime())) return 'Sin registro';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Obtiene la fecha de la última partida registrada de un perfil (en cualquier modo)
+ */
+export function getProfileOverallLastMatchDate(profile) {
+  if (!profile) return null;
+  let latestMs = 0;
+  if (Array.isArray(profile.leaderboards)) {
+    profile.leaderboards.forEach(lb => {
+      if (lb.lastMatchTime) {
+        const ms = new Date(lb.lastMatchTime).getTime();
+        if (!isNaN(ms) && ms > latestMs) latestMs = ms;
+      }
+    });
+  }
+  if (latestMs === 0 && Array.isArray(profile.ratings)) {
+    profile.ratings.forEach(rGroup => {
+      if (Array.isArray(rGroup.ratings) && rGroup.ratings[0]?.date) {
+        const ms = new Date(rGroup.ratings[0].date).getTime();
+        if (!isNaN(ms) && ms > latestMs) latestMs = ms;
+      }
+    });
+  }
+  return latestMs > 0 ? formatDateDDMMYYYY(new Date(latestMs).toISOString()) : 'Sin registro';
+}
+
+/**
  * Procesa todos los datos del jugador para una solapa (1v1 o Team)
  */
 export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceRefresh = false) {
@@ -203,19 +241,33 @@ export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceR
     ? Math.round(recentRatings.reduce((a, b) => a + b, 0) / recentRatings.length)
     : currentElo;
 
-  // Racha de victorias o derrotas en las partidas recientes
+  // Racha de victorias o derrotas en las partidas recientes y puntos ganados/perdidos en esa racha
   let streak = 0;
-  if (matches.length > 0 && matches[0].player?.won !== null) {
-    const firstWon = matches[0].player?.won;
-    for (const match of matches) {
-      if (match.status === 'ongoing') continue;
+  let streakEloChange = 0;
+  const completedMatches = matches.filter(m => m.status !== 'ongoing' && m.player && typeof m.player.won === 'boolean');
+  if (completedMatches.length > 0) {
+    const firstWon = completedMatches[0].player.won;
+    for (const match of completedMatches) {
       if (match.player && match.player.won === firstWon) {
         streak += firstWon ? 1 : -1;
+        streakEloChange += (match.player.ratingDiff || 0);
       } else {
         break;
       }
     }
   }
+
+  // Fallback para puntos de la racha desde el historial de ratings si algún match no trajo ratingDiff
+  if (streak !== 0 && streakEloChange === 0 && ratingHistory.length >= Math.abs(streak)) {
+    streakEloChange = ratingHistory
+      .slice(0, Math.abs(streak))
+      .reduce((acc, r) => acc + (r.ratingDiff || 0), 0);
+  }
+
+  // Fecha de última partida en este leaderboard
+  const lastMatchRaw = matches[0]?.started || lbData?.lastMatchTime || ratingHistory[0]?.date || null;
+  const lastMatchDate = formatDateDDMMYYYY(lastMatchRaw);
+  const overallLastMatchDate = getProfileOverallLastMatchDate(profile);
 
   // Delta total de Elo reciente (suma de ratingDiff)
   const totalEloChange = matches
@@ -235,6 +287,9 @@ export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceR
     maxElo,
     averageEloLast20,
     streak,
+    streakEloChange,
+    lastMatchDate,
+    overallLastMatchDate,
     totalEloChange,
     isPlayingNow,
     ongoingMatch,

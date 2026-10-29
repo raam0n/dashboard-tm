@@ -106,30 +106,16 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
       rankClass += ' is-playing';
     }
 
-    // Diferencia respecto al jugador inmediatamente superior
-    let diffHtml = '';
-    if (index > 0) {
-      const prevElo = sorted[index - 1].currentElo;
-      const diff = player.currentElo - prevElo;
-      diffHtml = `<span class="elo-diff red">(${diff})</span>`;
-    }
-
-    // Racha actual
-    let streakHtml = '';
+    // Racha actual y puntos ganados/perdidos durante esa racha
+    let rachaHtml = 'Racha: <span style="color:#777;">0</span>';
     if (player.streak !== 0) {
       const isWinStreak = player.streak > 0;
       const streakArrow = isWinStreak ? '↑' : '↓';
       const streakColor = isWinStreak ? 'green' : 'red';
-      streakHtml = `<span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}</span>`;
-    }
-
-    // Delta total de partidas recientes
-    let deltaHtml = '';
-    if (player.totalEloChange !== 0) {
-      const isPositive = player.totalEloChange > 0;
-      const sign = isPositive ? '+' : '';
-      const color = isPositive ? 'green' : 'red';
-      deltaHtml = `<span class="${color}">(${sign}${player.totalEloChange})</span>`;
+      const pts = player.streakEloChange || 0;
+      const ptsSign = pts > 0 ? '+' : '';
+      const ptsText = pts !== 0 ? ` (${ptsSign}${pts})` : '';
+      rachaHtml = `Racha: <span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}${ptsText}</span>`;
     }
 
     // Últimas 10 civs
@@ -170,12 +156,17 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
         ${player.isPlayingNow ? '<span class="card-live-tag">Live now</span>' : ''}
       </div>
       <div class="card-stats-row">
-        Now: <span class="elo-now">${player.currentElo}</span> ${diffHtml} - Max: <span class="elo-max">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
+        Now: <span class="elo-now">${player.currentElo}</span> - Max: <span class="elo-max">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
+      </div>
+      <div class="card-last-match-row">
+        <span>Últ. partida ${player.lastMatchDate || 'Sin registro'}</span>
+        <span class="meta-separator">•</span>
+        <span>${rachaHtml}</span>
       </div>
       <div class="card-civs-dropdown">
         <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar emblemas de civilizaciones">
           <span class="toggle-arrow">${isCivsExpanded ? '▼' : '▶'}</span>
-          <span>Last Played Civilizations: ${streakHtml} ${deltaHtml}</span>
+          <span>Last Played Civilizations</span>
         </button>
         <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
           ${recentCivs || '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>'}

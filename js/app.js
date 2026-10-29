@@ -5,7 +5,9 @@ import {
   getDisabledPlayerIds, 
   saveDisabledPlayerIds, 
   saveActivePlayerIds, 
-  getPlayerStats 
+  getPlayerStats,
+  fetchProfile,
+  getProfileOverallLastMatchDate
 } from './api.js';
 import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js';
 import { renderWeeklyView } from './weekly.js';
@@ -141,7 +143,7 @@ function setupEventListeners() {
   });
 
   elements.resetDefaultPlayersBtn.addEventListener('click', async () => {
-    if (!confirm('¿Deseas restaurar la lista oficial con los 26 jugadores del grupo?')) return;
+    if (!confirm(`¿Deseas restaurar la lista oficial con los ${CONFIG.DEFAULT_PLAYERS.length} jugadores del grupo?`)) return;
     localStorage.removeItem(CONFIG.STORAGE_KEY_PLAYERS);
     localStorage.removeItem(CONFIG.STORAGE_KEY_DISABLED);
     state.playerIds = getActivePlayerIds();
@@ -283,30 +285,54 @@ function openManagePlayersModal() {
   const allConfigured = getAllConfiguredPlayerIds();
   const disabledIds = getDisabledPlayerIds();
   
-  // Mapa de nombres predeterminados conocidos
+  // Mapa de nombres predeterminados conocidos y fecha de última partida
   const nameMap = new Map();
+  const lastMatchMap = new Map();
   CONFIG.DEFAULT_PLAYERS.forEach(p => nameMap.set(p.id, p.name));
   
-  // También usamos los nombres que ya hayamos cargado de la API
+  // También usamos los nombres y fechas que ya hayamos cargado de la API
   [...state.playersData1v1, ...state.playersDataTeam].forEach(p => {
-    if (p && p.profileId && p.name) {
-      nameMap.set(p.profileId, p.name);
+    if (p && p.profileId) {
+      if (p.name) nameMap.set(p.profileId, p.name);
+      if (p.overallLastMatchDate && !lastMatchMap.has(p.profileId)) {
+        lastMatchMap.set(p.profileId, p.overallLastMatchDate);
+      } else if (p.lastMatchDate && !lastMatchMap.has(p.profileId)) {
+        lastMatchMap.set(p.profileId, p.lastMatchDate);
+      }
     }
   });
 
   elements.playersChecklistContainer.innerHTML = allConfigured.map(id => {
     const isChecked = !disabledIds.includes(id);
     const playerName = nameMap.get(id) || `Jugador #${id}`;
+    const lastMatchStr = lastMatchMap.get(id) || 'Cargando...';
     return `
-      <label class="player-check-item ${isChecked ? 'checked' : ''}">
+      <label class="player-check-item ${isChecked ? 'checked' : ''}" data-item-id="${id}">
         <input type="checkbox" value="${id}" ${isChecked ? 'checked' : ''}>
         <div class="player-check-info">
-          <span class="player-check-name" title="${playerName}">${playerName}</span>
-          <span class="player-check-id">ID: ${id}</span>
+          <span class="player-check-name" data-name-id="${id}" title="${playerName}">${playerName}</span>
+          <span class="player-check-id">ID: ${id} • <span class="player-check-lastmatch" data-lastmatch-id="${id}">Últ. partida: ${lastMatchStr}</span></span>
         </div>
       </label>
     `;
   }).join('');
+
+  // Si algún jugador (ej. destildado) no tenía su perfil en memoria, lo consultamos para mostrar su última partida
+  allConfigured.forEach(async (id) => {
+    if (!lastMatchMap.has(id)) {
+      const prof = await fetchProfile(id, false);
+      const dateStr = prof ? getProfileOverallLastMatchDate(prof) : 'Sin registro';
+      const spanEl = elements.playersChecklistContainer.querySelector(`[data-lastmatch-id="${id}"]`);
+      if (spanEl) spanEl.textContent = `Últ. partida: ${dateStr}`;
+      if (prof && prof.name) {
+        const nameEl = elements.playersChecklistContainer.querySelector(`[data-name-id="${id}"]`);
+        if (nameEl) {
+          nameEl.textContent = prof.name;
+          nameEl.title = prof.name;
+        }
+      }
+    }
+  });
 
   elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {

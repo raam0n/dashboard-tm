@@ -28,7 +28,8 @@ export const CONFIG = {
     { id: 447722, name: 'Koffler' },
     { id: 2566703, name: 'TM TOGAMI' },
     { id: 1034341, name: 'funke' },
-    { id: 1904119, name: 'Vicezz' }
+    { id: 1904119, name: 'Vicezz' },
+    { id: 2084001, name: 'ram0n' }
   ],
   // Array de solo IDs para compatibilidad
   get DEFAULT_PLAYER_IDS() {
