@@ -1,4 +1,4 @@
-import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261028e';
+import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261029a';
 
 /**
  * Renderiza la vista de Métricas Semanales con toggle entre RM 1v1 y RM Team

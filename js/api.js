@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261028e';
+import { CONFIG } from './config.js?v=20261029a';
 
 // Cache para evitar peticiones redundantes
 const profileCache = new Map();
@@ -208,6 +208,9 @@ function mapMatch(m, targetProfileId) {
   }
 
   const targetPlayer = allPlayers.find(p => p.profileId === targetProfileId) || null;
+  const teammates = targetPlayer
+    ? allPlayers.filter(p => p.team === targetPlayer.team && p.profileId !== targetProfileId)
+    : [];
   const opponents = targetPlayer
     ? allPlayers.filter(p => p.team !== targetPlayer.team)
     : allPlayers.filter(p => p.profileId !== targetProfileId);
@@ -223,6 +226,7 @@ function mapMatch(m, targetProfileId) {
     gameMode: m.gameModeName || 'RM',
     leaderboardId: m.leaderboardId,
     player: targetPlayer,
+    teammates,
     opponents,
     allPlayers
   };

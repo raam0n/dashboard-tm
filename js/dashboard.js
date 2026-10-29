@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js?v=20261028e';
+import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js?v=20261029a';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -7,7 +7,7 @@ const expandedCardsCivs = new Set();
 /**
  * Renderiza el banner superior de "Live now" (soporta múltiples partidas simultáneas y partidas en equipo 2v2/3v3/4v4)
  */
-export function renderLiveBanner(playersData, container, extraLiveMatches = [], trackedIdsList = []) {
+export function renderLiveBanner(playersData, container, extraLiveMatches = [], trackedIdsList = [], onPlayerClick = null) {
   if (liveTimerInterval) clearInterval(liveTimerInterval);
 
   const validPlayers = playersData.filter(Boolean);
@@ -76,23 +76,26 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
       ? `<img src="${getFlagUrl(p.country)}" class="live-flag" alt="${p.country}">`
       : '';
 
+    const clickTitle = p.profileId ? `Click para ver estadísticas de ${p.name || 'este jugador'}` : '';
+    const clickAttr = p.profileId ? `data-profile-id="${p.profileId}"` : '';
+
     if (side === 'left') {
       return `
-        <div class="live-player-chip ${isTracked ? 'is-tracked' : ''}">
+        <button type="button" class="live-player-chip ${isTracked ? 'is-tracked' : ''} ${p.profileId ? 'is-clickable' : ''}" ${clickAttr} title="${clickTitle}">
           <span class="live-player-name">${p.name || 'Jugador'}</span>
           <span class="live-player-elo">(${elo})</span>
           ${flagImg}
           ${civImg}
-        </div>
+        </button>
       `;
     }
     return `
-      <div class="live-player-chip ${isTracked ? 'is-tracked' : ''}">
+      <button type="button" class="live-player-chip ${isTracked ? 'is-tracked' : ''} ${p.profileId ? 'is-clickable' : ''}" ${clickAttr} title="${clickTitle}">
         ${civImg}
         ${flagImg}
         <span class="live-player-elo">(${elo})</span>
         <span class="live-player-name">${p.name || 'Rival'}</span>
-      </div>
+      </button>
     `;
   }
 
@@ -118,17 +121,18 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
     const isTeamGame = teamLeft.length > 1 || teamRight.length > 1;
     const formatLabel = `${teamLeft.length || 1}v${teamRight.length || 1}`;
     const durationStr = formatDuration(match.started);
+    const matchUrl = match.matchId ? `https://www.aoe2companion.com/matches/${match.matchId}` : '#';
 
     const leftPlayersHtml = teamLeft.map(p => renderTeamPlayerChip(p, match.leaderboardId, 'left')).join('');
     const rightPlayersHtml = teamRight.map(p => renderTeamPlayerChip(p, match.leaderboardId, 'right')).join('');
 
     return `
       <div class="live-banner ${isTeamGame ? 'live-banner-team' : ''}">
-        <div class="live-status-col">
+        <a href="${matchUrl}" target="_blank" rel="noopener noreferrer" class="live-status-col live-match-link" title="Ver partida #${match.matchId || ''} en AoE2Companion">
           <span class="live-badge">Live now</span>
           <span class="live-mode-tag">${formatLabel}</span>
           <span class="live-clock">${nowStr}</span>
-        </div>
+        </a>
         <div class="live-match-info ${isTeamGame ? 'is-team-match' : ''}">
           <div class="live-team-side side-left">
             ${leftPlayersHtml}
@@ -138,15 +142,27 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
             ${rightPlayersHtml}
           </div>
         </div>
-        <div class="live-meta">
+        <a href="${matchUrl}" target="_blank" rel="noopener noreferrer" class="live-meta live-match-link" title="Ver estadísticas de la partida #${match.matchId || ''} en AoE2Companion">
           <span class="live-map">${match.mapName}</span>
           <span class="live-duration" data-started="${match.started || 0}">${durationStr}</span>
-        </div>
+          <span class="live-ext-icon">↗</span>
+        </a>
       </div>
     `;
   }).join('');
 
   container.innerHTML = `<div class="live-banners-list">${bannersHtml}</div>`;
+
+  // Listener para hacer click en los compañeros o rivales dentro del banner live
+  container.querySelectorAll('.live-player-chip[data-profile-id]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pid = parseInt(btn.dataset.profileId, 10);
+      if (pid && onPlayerClick) {
+        onPlayerClick(pid);
+      }
+    });
+  });
 
   liveTimerInterval = setInterval(() => {
     const currentNowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -233,8 +249,17 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
            <div class="map-diamond-fallback" style="display:none;"><span>?</span></div>`
         : `<div class="map-diamond-fallback"><span>?</span></div>`;
 
+      const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : '#';
+
       return `
-        <div class="last-match-col" title="${tooltip}">
+        <a 
+          href="${matchUrl}" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="last-match-col is-link" 
+          title="${tooltip} • Click para ver estadísticas en AoE2Companion"
+          onclick="event.stopPropagation();"
+        >
           <img 
             src="${getCivIconUrl(civName)}" 
             class="civ-shield-icon ${borderClass}" 
@@ -244,7 +269,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
           <div class="match-map-frame">
             ${mapBoxHtml}
           </div>
-        </div>
+        </a>
       `;
     }).join('');
 
@@ -355,6 +380,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
     const isOngoing = m.status === 'ongoing';
     const isWon = m.player?.won === true;
     const opponentsList = m.opponents && m.opponents.length > 0 ? m.opponents : [];
+    const teammatesList = m.teammates && m.teammates.length > 0 ? m.teammates : [];
     const dateStr = m.started ? new Date(m.started * 1000).toLocaleDateString() : '-';
 
     let resultHtml = isOngoing ? '<span class="red" style="font-weight:bold;">En curso...</span>' : (isWon ? '<span class="green" style="font-weight:bold;">Victoria</span>' : '<span class="red" style="font-weight:bold;">Derrota</span>');
@@ -363,30 +389,64 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
     const eloDiffStr = eloChange != null ? (eloChange > 0 ? `+${eloChange}` : `${eloChange}`) : '-';
     const eloClass = eloChange > 0 ? 'green' : (eloChange < 0 ? 'red' : '');
 
-    const rivalsHtml = opponentsList.length > 0
-      ? opponentsList.map(opp => {
-          const oppCivImg = opp.civ ? `<img src="${getCivIconUrl(opp.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
-          if (opp.profileId) {
-            return `
-              <button type="button" class="rival-profile-link" data-profile-id="${opp.profileId}" title="Ver perfil de ${opp.name}">
-                ${oppCivImg}
-                <span class="rival-name-text">${opp.name || 'Rival'}</span>
-                <span class="rival-elo-text">(${opp.rating ?? '?'})</span>
-              </button>
-            `;
-          }
-          return `<span>${oppCivImg} ${opp.name || 'Rival'} (${opp.rating ?? '?'})</span>`;
-        }).join(' ')
+    function renderPlayerChip(p, isTeammate = false) {
+      const civImg = p.civ ? `<img src="${getCivIconUrl(p.civ)}" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
+      const fallbackRole = isTeammate ? 'Compañero' : 'Rival';
+      if (p.profileId) {
+        return `
+          <button type="button" class="rival-profile-link ${isTeammate ? 'is-teammate' : ''}" data-profile-id="${p.profileId}" title="Ver estadísticas de ${p.name || fallbackRole}">
+            ${civImg}
+            <span class="rival-name-text">${p.name || fallbackRole}</span>
+            <span class="rival-elo-text">(${p.rating ?? '?'})</span>
+          </button>
+        `;
+      }
+      return `<span class="player-static-chip">${civImg} ${p.name || fallbackRole} (${p.rating ?? '?'})</span>`;
+    }
+
+    const compasHtml = teammatesList.map(t => renderPlayerChip(t, true)).join(' ');
+    const rivalsHtml = opponentsList.map(o => renderPlayerChip(o, false)).join(' ');
+
+    let playersCellHtml = '';
+    if (teammatesList.length > 0) {
+      playersCellHtml = `
+        <div class="match-players-cell">
+          <div class="team-group-row">
+            <span class="team-role-tag compas">Compas:</span>
+            <div class="team-chips-list">${compasHtml}</div>
+          </div>
+          <div class="team-group-row">
+            <span class="team-role-tag rivales">Rivales:</span>
+            <div class="team-chips-list">${rivalsHtml || '-'}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      playersCellHtml = `
+        <div class="match-players-cell">
+          <div class="team-chips-list">${rivalsHtml || '-'}</div>
+        </div>
+      `;
+    }
+
+    const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : null;
+    const mapCellHtml = matchUrl
+      ? `<a href="${matchUrl}" target="_blank" rel="noopener noreferrer" class="match-map-link" title="Ver partida #${m.matchId} en AoE2Companion"><strong>${m.mapName}</strong> <span class="ext-link-icon">↗</span></a>`
+      : `<strong>${m.mapName}</strong>`;
+
+    const matchLinkHtml = matchUrl
+      ? `<a href="${matchUrl}" target="_blank" rel="noopener noreferrer" class="match-detail-btn" title="Ver estadísticas de la partida en AoE2Companion">Stats ↗</a>`
       : '-';
 
     return `
       <tr>
         <td>${dateStr}</td>
-        <td><strong>${m.mapName}</strong></td>
+        <td>${mapCellHtml}</td>
         <td><img src="${getCivIconUrl(m.player?.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"> ${m.player?.civ || '-'}</td>
-        <td><div class="rivals-cell-list">${rivalsHtml}</div></td>
+        <td>${playersCellHtml}</td>
         <td>${resultHtml}</td>
         <td class="${eloClass}"><strong>${eloDiffStr}</strong></td>
+        <td>${matchLinkHtml}</td>
       </tr>
     `;
   }).join('');
@@ -419,15 +479,19 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
                 <th>Fecha</th>
                 <th>Mapa</th>
                 <th>Civilización</th>
-                <th>Rival (click para ver perfil)</th>
+                <th>Jugadores (click para ver perfil)</th>
                 <th>Resultado</th>
                 <th>Elo</th>
+                <th>Partida</th>
               </tr>
             </thead>
             <tbody>
-              ${matchesRowsHtml || '<tr><td colspan="6">Sin partidas registradas</td></tr>'}
+              ${matchesRowsHtml || '<tr><td colspan="7">Sin partidas registradas</td></tr>'}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
         </div>
       </div>
     </div>
@@ -474,28 +538,28 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
     });
   });
 
-  // Eventos para abrir el perfil del rival al hacer click en el historial
-  modalContainer.querySelectorAll('.rival-profile-link').forEach(rivalBtn => {
-    rivalBtn.addEventListener('click', async () => {
-      const rivalId = parseInt(rivalBtn.dataset.profileId, 10);
-      if (!rivalId) return;
+  // Eventos para abrir el perfil del compañero o rival al hacer click en el historial
+  modalContainer.querySelectorAll('.rival-profile-link').forEach(linkBtn => {
+    linkBtn.addEventListener('click', async () => {
+      const pid = parseInt(linkBtn.dataset.profileId, 10);
+      if (!pid) return;
 
       modalContainer.innerHTML = `
         <button class="modal-close" id="modalCloseBtn">&times;</button>
         <div class="loading-box" style="padding: 40px 20px;">
           <div class="spinner"></div>
-          <p>Cargando perfil del rival...</p>
+          <p>Cargando perfil del jugador...</p>
         </div>
       `;
       document.getElementById('modalCloseBtn').onclick = () => {
         modalOverlay.classList.remove('active');
       };
 
-      const rivalStats = await getPlayerStats(rivalId, player.leaderboardId);
-      if (rivalStats) {
-        showPlayerModal(rivalStats, modalContainer, modalOverlay, [...previousPlayers, player]);
+      const playerStats = await getPlayerStats(pid, player.leaderboardId);
+      if (playerStats) {
+        showPlayerModal(playerStats, modalContainer, modalOverlay, [...previousPlayers, player]);
       } else {
-        alert('No se pudo cargar el perfil del rival.');
+        alert('No se pudo cargar el perfil del jugador.');
         showPlayerModal(player, modalContainer, modalOverlay, previousPlayers);
       }
     });

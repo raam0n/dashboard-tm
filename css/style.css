@@ -229,12 +229,32 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.92rem;
   color: #ccc;
+  font-family: inherit;
+  cursor: default;
+}
+
+.live-player-chip.is-clickable {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.live-player-chip.is-clickable:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 .live-player-chip.is-tracked {
   background: rgba(37, 99, 235, 0.16);
   border-color: rgba(59, 130, 246, 0.5);
   color: #fff;
+}
+
+.live-player-chip.is-tracked.is-clickable:hover {
+  background: rgba(37, 99, 235, 0.35);
+  border-color: #60a5fa;
+  transform: translateY(-1px);
 }
 
 .live-player-name {
@@ -290,6 +310,36 @@ body {
   font-family: monospace;
   font-size: 0.95rem;
   color: #f59e0b;
+}
+
+.live-match-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.live-match-link:hover .live-map {
+  background: rgba(37, 99, 235, 0.35);
+  border: 1px solid #3b82f6;
+  color: #fff;
+}
+
+.live-match-link:hover .live-mode-tag {
+  background: rgba(37, 99, 235, 0.45);
+  border-color: #60a5fa;
+  color: #fff;
+}
+
+.live-ext-icon {
+  font-size: 0.85rem;
+  color: #60a5fa;
+  font-weight: 700;
+  transition: transform 0.15s ease;
+}
+
+.live-match-link:hover .live-ext-icon {
+  transform: translate(2px, -2px);
+  color: #93c5fd;
 }
 
 .live-empty {
@@ -578,11 +628,26 @@ body {
   gap: 5px;
   flex-shrink: 0;
   transition: transform 0.15s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+a.last-match-col {
+  cursor: pointer;
 }
 
 .last-match-col:hover {
   transform: translateY(-2px);
   z-index: 5;
+}
+
+a.last-match-col:hover .civ-shield-icon {
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.9);
+}
+
+a.last-match-col:hover .match-map-frame {
+  transform: scale(1.08);
+  transition: transform 0.15s ease;
 }
 
 .civ-shield-icon {
@@ -881,6 +946,48 @@ body {
   align-items: center;
 }
 
+.match-players-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.team-role-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.team-role-tag.compas {
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+.team-role-tag.rivales {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.team-chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .rival-profile-link {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -893,11 +1000,73 @@ body {
   align-items: center;
   gap: 5px;
   transition: all 0.15s ease;
+  font-family: inherit;
 }
 
 .rival-profile-link:hover {
   background: rgba(37, 99, 235, 0.25);
   border-color: #3b82f6;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.rival-profile-link.is-teammate {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.rival-profile-link.is-teammate:hover {
+  background: rgba(37, 99, 235, 0.35);
+  border-color: #60a5fa;
+}
+
+.player-static-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #aaa;
+  font-size: 0.82rem;
+}
+
+.match-map-link {
+  color: #f3f4f6;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.match-map-link:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.match-map-link .ext-link-icon {
+  font-size: 0.78rem;
+  color: #60a5fa;
+  opacity: 0.8;
+}
+
+.match-detail-btn {
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.match-detail-btn:hover {
+  background: rgba(37, 99, 235, 0.45);
+  border-color: #60a5fa;
   color: #fff;
   transform: translateY(-1px);
 }

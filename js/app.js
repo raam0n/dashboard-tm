@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261028e';
+import { CONFIG } from './config.js?v=20261029a';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -10,10 +10,10 @@ import {
   fetchGroupLiveMatches,
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp
-} from './api.js?v=20261028e';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261028e';
-import { renderWeeklyView } from './weekly.js?v=20261028e';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261028e';
+} from './api.js?v=20261029a';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029a';
+import { renderWeeklyView } from './weekly.js?v=20261029a';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261029a';
 
 // Estado global de la aplicación
 const state = {
@@ -260,7 +260,7 @@ async function loadAllData(forceRefresh = false) {
     fetchGroupLiveMatches(state.playerIds).then(liveMatches => {
       state.liveMatches = liveMatches || [];
       const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
-      renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds);
+      renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds, handlePlayerProfileClick);
     });
 
     // 2. Cargamos los jugadores en lotes de a 6 para evitar rate-limiting de Cloudflare cuando son muchos jugadores
@@ -299,7 +299,7 @@ function renderCurrentView() {
 
   // Siempre actualizamos el banner de live con las partidas que estén en curso (en 1v1 o Team)
   const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
-  renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds);
+  renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds, handlePlayerProfileClick);
 
   // Mostrar/ocultar barra de ordenamiento solo en solapas de ranking
   if (elements.rankingToolbar) {
@@ -349,6 +349,46 @@ function renderCurrentView() {
  */
 function onCardClick(player) {
   showPlayerModal(player, elements.modalContainer, elements.modalOverlay);
+}
+
+/**
+ * Abre el modal con las estadísticas de un jugador a partir de su profileId
+ * (útil para compañeros o rivales al clickearlos en el Live Banner o en el historial)
+ */
+async function handlePlayerProfileClick(profileId, leaderboardId = 'rm_1v1') {
+  if (!profileId) return;
+
+  const targetLb = (state.currentTab === 'rm_team') ? 'rm_team' : (leaderboardId || 'rm_1v1');
+  const pool = targetLb === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
+  const altPool = targetLb === 'rm_team' ? state.playersData1v1 : state.playersDataTeam;
+  const found = pool.find(p => p && p.profileId === profileId) || altPool.find(p => p && p.profileId === profileId);
+
+  if (found) {
+    showPlayerModal(found, elements.modalContainer, elements.modalOverlay);
+    return;
+  }
+
+  // Si no está en memoria, mostramos modal con loading y lo consultamos a la API
+  elements.modalContainer.innerHTML = `
+    <button class="modal-close" id="modalCloseBtn">&times;</button>
+    <div class="loading-box" style="padding: 40px 20px;">
+      <div class="spinner"></div>
+      <p>Cargando estadísticas del jugador...</p>
+    </div>
+  `;
+  elements.modalOverlay.classList.add('active');
+  const closeBtn = document.getElementById('modalCloseBtn');
+  if (closeBtn) {
+    closeBtn.onclick = () => elements.modalOverlay.classList.remove('active');
+  }
+
+  const stats = await getPlayerStats(profileId, targetLb);
+  if (stats) {
+    showPlayerModal(stats, elements.modalContainer, elements.modalOverlay);
+  } else {
+    alert('No se pudo cargar el perfil del jugador.');
+    elements.modalOverlay.classList.remove('active');
+  }
 }
 
 /**
