@@ -138,16 +138,30 @@ body {
   margin-bottom: 25px;
 }
 
+.live-banners-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .live-banner {
   border: 1px dashed rgba(255, 255, 255, 0.3);
   border-radius: 8px;
   padding: 10px 20px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.78);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 15px;
   min-height: 48px;
+  flex-wrap: wrap;
+}
+
+.live-status-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .live-badge {
@@ -162,6 +176,16 @@ body {
   animation: pulse 1.5s infinite;
 }
 
+.live-mode-tag {
+  background: rgba(37, 99, 235, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
 .live-clock {
   font-size: 0.85rem;
   color: #888;
@@ -172,31 +196,78 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #fff;
   flex: 1;
   justify-content: center;
 }
 
+.live-team-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.live-team-side.side-left {
+  justify-content: flex-end;
+}
+
+.live-team-side.side-right {
+  justify-content: flex-start;
+}
+
+.live-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.92rem;
+  color: #ccc;
+}
+
+.live-player-chip.is-tracked {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #fff;
+}
+
+.live-player-name {
+  font-weight: 700;
+}
+
+.live-player-elo {
+  color: #60a5fa;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .live-civ-shield {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   vertical-align: middle;
 }
 
 .live-flag {
-  width: 20px;
-  height: 14px;
+  width: 19px;
+  height: 13px;
   border-radius: 2px;
   vertical-align: middle;
 }
 
 .live-vs {
   font-size: 0.8rem;
-  color: #aaa;
+  font-weight: 800;
+  color: #f59e0b;
   margin: 0 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .live-meta {
@@ -205,6 +276,7 @@ body {
   gap: 12px;
   font-size: 0.85rem;
   color: #aaa;
+  flex-shrink: 0;
 }
 
 .live-map {

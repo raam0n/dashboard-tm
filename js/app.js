@@ -7,7 +7,8 @@ import {
   saveActivePlayerIds, 
   getPlayerStats,
   fetchProfile,
-  getProfileOverallLastMatchDate
+  getProfileOverallLastMatchDate,
+  getProfileOverallLastMatchTimestamp
 } from './api.js';
 import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js';
 import { renderWeeklyView } from './weekly.js';
@@ -194,6 +195,25 @@ function setupEventListeners() {
 }
 
 /**
+ * Sincroniza el estado "en vivo" entre 1v1 y Team para que las tarjetas muestren "Live now"
+ * sin importar en qué modo esté jugando el jugador actualmente.
+ */
+function syncPlayingState(list1v1, listTeam) {
+  const liveMap = new Map();
+  [...list1v1, ...listTeam].forEach(p => {
+    if (p && p.isPlayingNow && p.ongoingMatch) {
+      liveMap.set(p.profileId, p.ongoingMatch);
+    }
+  });
+  [...list1v1, ...listTeam].forEach(p => {
+    if (p && !p.isPlayingNow && liveMap.has(p.profileId)) {
+      p.isPlayingNow = true;
+      p.ongoingMatch = liveMap.get(p.profileId);
+    }
+  });
+}
+
+/**
  * Carga los datos de todos los jugadores para 1v1 y Team
  */
 async function loadAllData(forceRefresh = false) {
@@ -216,6 +236,7 @@ async function loadAllData(forceRefresh = false) {
 
     state.playersData1v1 = data1v1.filter(Boolean);
     state.playersDataTeam = dataTeam.filter(Boolean);
+    syncPlayingState(state.playersData1v1, state.playersDataTeam);
   } catch (err) {
     console.error('Error cargando datos de jugadores:', err);
   } finally {
@@ -279,21 +300,42 @@ function onCardClick(player) {
 }
 
 /**
+ * Ordena los elementos del checklist en el DOM por fecha de última partida descendente
+ */
+function sortChecklistItemsDom() {
+  const items = Array.from(elements.playersChecklistContainer.querySelectorAll('.player-check-item'));
+  items.sort((a, b) => {
+    const tsA = Number(a.dataset.lastmatchTs ?? -1);
+    const tsB = Number(b.dataset.lastmatchTs ?? -1);
+    if (tsB !== tsA) return tsB - tsA;
+    const nameA = (a.querySelector('.player-check-name')?.textContent || '').toLowerCase();
+    const nameB = (b.querySelector('.player-check-name')?.textContent || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+  items.forEach(item => elements.playersChecklistContainer.appendChild(item));
+}
+
+/**
  * Abre el modal para gestionar / tildar jugadores
  */
 function openManagePlayersModal() {
   const allConfigured = getAllConfiguredPlayerIds();
   const disabledIds = getDisabledPlayerIds();
   
-  // Mapa de nombres predeterminados conocidos y fecha de última partida
+  // Mapa de nombres predeterminados conocidos, fecha de última partida y timestamp
   const nameMap = new Map();
   const lastMatchMap = new Map();
+  const lastMatchTsMap = new Map();
   CONFIG.DEFAULT_PLAYERS.forEach(p => nameMap.set(p.id, p.name));
   
   // También usamos los nombres y fechas que ya hayamos cargado de la API
   [...state.playersData1v1, ...state.playersDataTeam].forEach(p => {
     if (p && p.profileId) {
       if (p.name) nameMap.set(p.profileId, p.name);
+      const ts = p.overallLastMatchTimestamp || 0;
+      if (!lastMatchTsMap.has(p.profileId) || ts > lastMatchTsMap.get(p.profileId)) {
+        lastMatchTsMap.set(p.profileId, ts);
+      }
       if (p.overallLastMatchDate && !lastMatchMap.has(p.profileId)) {
         lastMatchMap.set(p.profileId, p.overallLastMatchDate);
       } else if (p.lastMatchDate && !lastMatchMap.has(p.profileId)) {
@@ -302,12 +344,23 @@ function openManagePlayersModal() {
     }
   });
 
-  elements.playersChecklistContainer.innerHTML = allConfigured.map(id => {
+  // Ordenamos inicialmente por fecha de última partida descendente
+  const sortedIds = [...allConfigured].sort((a, b) => {
+    const tsA = lastMatchTsMap.get(a) ?? -1;
+    const tsB = lastMatchTsMap.get(b) ?? -1;
+    if (tsB !== tsA) return tsB - tsA;
+    const nameA = (nameMap.get(a) || '').toLowerCase();
+    const nameB = (nameMap.get(b) || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  elements.playersChecklistContainer.innerHTML = sortedIds.map(id => {
     const isChecked = !disabledIds.includes(id);
     const playerName = nameMap.get(id) || `Jugador #${id}`;
     const lastMatchStr = lastMatchMap.get(id) || 'Cargando...';
+    const lastMatchTs = lastMatchTsMap.get(id) ?? -1;
     return `
-      <label class="player-check-item ${isChecked ? 'checked' : ''}" data-item-id="${id}">
+      <label class="player-check-item ${isChecked ? 'checked' : ''}" data-item-id="${id}" data-lastmatch-ts="${lastMatchTs}">
         <input type="checkbox" value="${id}" ${isChecked ? 'checked' : ''}>
         <div class="player-check-info">
           <span class="player-check-name" data-name-id="${id}" title="${playerName}">${playerName}</span>
@@ -317,11 +370,14 @@ function openManagePlayersModal() {
     `;
   }).join('');
 
-  // Si algún jugador (ej. destildado) no tenía su perfil en memoria, lo consultamos para mostrar su última partida
-  allConfigured.forEach(async (id) => {
+  // Si algún jugador (ej. destildado) no tenía su perfil en memoria, lo consultamos y reordenamos por fecha descendente
+  sortedIds.forEach(async (id) => {
     if (!lastMatchMap.has(id)) {
       const prof = await fetchProfile(id, false);
       const dateStr = prof ? getProfileOverallLastMatchDate(prof) : 'Sin registro';
+      const ts = prof ? getProfileOverallLastMatchTimestamp(prof) : 0;
+      const itemEl = elements.playersChecklistContainer.querySelector(`[data-item-id="${id}"]`);
+      if (itemEl) itemEl.dataset.lastmatchTs = String(ts);
       const spanEl = elements.playersChecklistContainer.querySelector(`[data-lastmatch-id="${id}"]`);
       if (spanEl) spanEl.textContent = `Últ. partida: ${dateStr}`;
       if (prof && prof.name) {
@@ -331,6 +387,7 @@ function openManagePlayersModal() {
           nameEl.title = prof.name;
         }
       }
+      sortChecklistItemsDom();
     }
   });
 
@@ -388,6 +445,7 @@ function startPolling() {
       ]);
       state.playersData1v1 = res1v1.filter(Boolean);
       state.playersDataTeam = resTeam.filter(Boolean);
+      syncPlayingState(state.playersData1v1, state.playersDataTeam);
       renderCurrentView();
     } catch (err) {
       console.warn('Error en polling:', err);

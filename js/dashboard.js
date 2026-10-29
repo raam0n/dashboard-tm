@@ -5,15 +5,37 @@ let liveTimerInterval = null;
 const expandedCardsCivs = new Set();
 
 /**
- * Renderiza el banner superior de "Live now"
+ * Renderiza el banner superior de "Live now" (soporta múltiples partidas simultáneas y partidas en equipo 2v2/3v3/4v4)
  */
 export function renderLiveBanner(playersData, container) {
   if (liveTimerInterval) clearInterval(liveTimerInterval);
 
-  // Buscamos jugadores con partida en curso
-  const playingPlayers = playersData.filter(p => p && p.isPlayingNow && p.ongoingMatch);
+  const validPlayers = playersData.filter(Boolean);
+  const trackedProfileIds = new Set(validPlayers.map(p => p.profileId));
+  const playerEloMap = new Map();
+  validPlayers.forEach(p => {
+    if (p.profileId && p.currentElo) {
+      playerEloMap.set(`${p.profileId}_${p.leaderboardId}`, p.currentElo);
+      if (!playerEloMap.has(p.profileId)) {
+        playerEloMap.set(p.profileId, p.currentElo);
+      }
+    }
+  });
 
-  if (playingPlayers.length === 0) {
+  // Buscamos jugadores con partida en curso y deduplicamos por matchId
+  const playingPlayers = validPlayers.filter(p => p.isPlayingNow && p.ongoingMatch);
+  const uniqueMatchesMap = new Map();
+  playingPlayers.forEach(p => {
+    const m = p.ongoingMatch;
+    const key = m.matchId || `${m.leaderboardId}_${m.started}_${m.mapName}_${p.profileId}`;
+    if (!uniqueMatchesMap.has(key)) {
+      uniqueMatchesMap.set(key, m);
+    }
+  });
+
+  const activeMatches = Array.from(uniqueMatchesMap.values());
+
+  if (activeMatches.length === 0) {
     const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     container.innerHTML = `
       <div class="live-banner">
@@ -26,50 +48,105 @@ export function renderLiveBanner(playersData, container) {
     return;
   }
 
-  // Tomamos la primera partida activa (o podemos mostrar varias si hay más)
-  const active = playingPlayers[0];
-  const match = active.ongoingMatch;
-  const targetPlayer = match.player;
-  const opponent = match.opponents && match.opponents.length > 0 ? match.opponents[0] : null;
-
-  function updateBannerHtml() {
-    const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const elapsedSec = match.started ? Math.max(0, Math.floor(Date.now() / 1000 - match.started)) : 0;
+  function formatDuration(startedSec) {
+    const elapsedSec = startedSec ? Math.max(0, Math.floor(Date.now() / 1000 - startedSec)) : 0;
     const mins = Math.floor(elapsedSec / 60);
     const secs = elapsedSec % 60;
-    const durationStr = `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
+    return `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
+  }
 
-    const p1Civ = targetPlayer?.civ ? `<img src="${getCivIconUrl(targetPlayer.civ)}" class="live-civ-shield" title="${targetPlayer.civ}" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
-    const p1Flag = targetPlayer?.country ? `<img src="${getFlagUrl(targetPlayer.country)}" class="live-flag">` : '';
+  function renderTeamPlayerChip(p, matchLeaderboardId, side) {
+    const isTracked = trackedProfileIds.has(p.profileId);
+    const elo = p.rating ?? playerEloMap.get(`${p.profileId}_${matchLeaderboardId}`) ?? playerEloMap.get(p.profileId) ?? '?';
+    const civImg = p.civ
+      ? `<img src="${getCivIconUrl(p.civ)}" class="live-civ-shield" title="${p.civ}" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">`
+      : '';
+    const flagImg = p.country
+      ? `<img src="${getFlagUrl(p.country)}" class="live-flag" alt="${p.country}">`
+      : '';
 
-    const p2Civ = opponent?.civ ? `<img src="${getCivIconUrl(opponent.civ)}" class="live-civ-shield" title="${opponent.civ}" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
-    const p2Flag = opponent?.country ? `<img src="${getFlagUrl(opponent.country)}" class="live-flag">` : '';
-
-    container.innerHTML = `
-      <div class="live-banner">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span class="live-badge">Live now</span>
-          <span class="live-clock">${nowStr}</span>
+    if (side === 'left') {
+      return `
+        <div class="live-player-chip ${isTracked ? 'is-tracked' : ''}">
+          <span class="live-player-name">${p.name || 'Jugador'}</span>
+          <span class="live-player-elo">(${elo})</span>
+          ${flagImg}
+          ${civImg}
         </div>
-        <div class="live-match-info">
-          <span>${active.name} (${targetPlayer?.rating ?? active.currentElo})</span>
-          ${p1Flag}
-          ${p1Civ}
-          <span class="live-vs">vs</span>
-          ${p2Civ}
-          ${p2Flag}
-          <span>(${opponent?.rating ?? '?'}) ${opponent?.name || 'Rival'}</span>
-        </div>
-        <div class="live-meta">
-          <span class="live-map">${match.mapName}</span>
-          <span class="live-duration">${durationStr}</span>
-        </div>
+      `;
+    }
+    return `
+      <div class="live-player-chip ${isTracked ? 'is-tracked' : ''}">
+        ${civImg}
+        ${flagImg}
+        <span class="live-player-elo">(${elo})</span>
+        <span class="live-player-name">${p.name || 'Rival'}</span>
       </div>
     `;
   }
 
-  updateBannerHtml();
-  liveTimerInterval = setInterval(updateBannerHtml, 1000);
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const bannersHtml = activeMatches.map(match => {
+    const allPlayers = Array.isArray(match.allPlayers) ? match.allPlayers : [];
+
+    // Identificamos el equipo donde está nuestro jugador (o jugadores del grupo)
+    const trackedInMatch = allPlayers.find(p => trackedProfileIds.has(p.profileId));
+    const ourTeamId = trackedInMatch?.team ?? match.player?.team ?? 1;
+
+    let teamLeft = allPlayers.filter(p => p.team === ourTeamId);
+    let teamRight = allPlayers.filter(p => p.team !== ourTeamId);
+
+    if (teamLeft.length === 0 && match.player) teamLeft = [match.player];
+    if (teamRight.length === 0 && Array.isArray(match.opponents)) teamRight = match.opponents;
+
+    // Ordenamos para que los jugadores del grupo aparezcan primero dentro de cada equipo
+    teamLeft.sort((a, b) => (trackedProfileIds.has(b.profileId) ? 1 : 0) - (trackedProfileIds.has(a.profileId) ? 1 : 0));
+    teamRight.sort((a, b) => (trackedProfileIds.has(b.profileId) ? 1 : 0) - (trackedProfileIds.has(a.profileId) ? 1 : 0));
+
+    const isTeamGame = teamLeft.length > 1 || teamRight.length > 1;
+    const formatLabel = `${teamLeft.length || 1}v${teamRight.length || 1}`;
+    const durationStr = formatDuration(match.started);
+
+    const leftPlayersHtml = teamLeft.map(p => renderTeamPlayerChip(p, match.leaderboardId, 'left')).join('');
+    const rightPlayersHtml = teamRight.map(p => renderTeamPlayerChip(p, match.leaderboardId, 'right')).join('');
+
+    return `
+      <div class="live-banner ${isTeamGame ? 'live-banner-team' : ''}">
+        <div class="live-status-col">
+          <span class="live-badge">Live now</span>
+          <span class="live-mode-tag">${formatLabel}</span>
+          <span class="live-clock">${nowStr}</span>
+        </div>
+        <div class="live-match-info ${isTeamGame ? 'is-team-match' : ''}">
+          <div class="live-team-side side-left">
+            ${leftPlayersHtml}
+          </div>
+          <span class="live-vs">vs</span>
+          <div class="live-team-side side-right">
+            ${rightPlayersHtml}
+          </div>
+        </div>
+        <div class="live-meta">
+          <span class="live-map">${match.mapName}</span>
+          <span class="live-duration" data-started="${match.started || 0}">${durationStr}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `<div class="live-banners-list">${bannersHtml}</div>`;
+
+  liveTimerInterval = setInterval(() => {
+    const currentNowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    container.querySelectorAll('.live-clock').forEach(el => {
+      el.textContent = currentNowStr;
+    });
+    container.querySelectorAll('.live-duration[data-started]').forEach(el => {
+      const startedSec = Number(el.dataset.started);
+      el.textContent = formatDuration(startedSec);
+    });
+  }, 1000);
 }
 
 /**

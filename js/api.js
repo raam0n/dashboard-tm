@@ -193,10 +193,10 @@ export function formatDateDDMMYYYY(val) {
 }
 
 /**
- * Obtiene la fecha de la última partida registrada de un perfil (en cualquier modo)
+ * Obtiene el timestamp (en ms) de la última partida registrada de un perfil (en cualquier modo)
  */
-export function getProfileOverallLastMatchDate(profile) {
-  if (!profile) return null;
+export function getProfileOverallLastMatchTimestamp(profile) {
+  if (!profile) return 0;
   let latestMs = 0;
   if (Array.isArray(profile.leaderboards)) {
     profile.leaderboards.forEach(lb => {
@@ -214,6 +214,14 @@ export function getProfileOverallLastMatchDate(profile) {
       }
     });
   }
+  return latestMs;
+}
+
+/**
+ * Obtiene la fecha de la última partida registrada de un perfil (en cualquier modo)
+ */
+export function getProfileOverallLastMatchDate(profile) {
+  const latestMs = getProfileOverallLastMatchTimestamp(profile);
   return latestMs > 0 ? formatDateDDMMYYYY(new Date(latestMs).toISOString()) : 'Sin registro';
 }
 
@@ -267,7 +275,11 @@ export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceR
   // Fecha de última partida en este leaderboard
   const lastMatchRaw = matches[0]?.started || lbData?.lastMatchTime || ratingHistory[0]?.date || null;
   const lastMatchDate = formatDateDDMMYYYY(lastMatchRaw);
-  const overallLastMatchDate = getProfileOverallLastMatchDate(profile);
+  const matchStartedMs = matches[0]?.started ? matches[0].started * 1000 : 0;
+  const overallLastMatchTimestamp = Math.max(getProfileOverallLastMatchTimestamp(profile), matchStartedMs);
+  const overallLastMatchDate = overallLastMatchTimestamp > 0
+    ? formatDateDDMMYYYY(new Date(overallLastMatchTimestamp).toISOString())
+    : 'Sin registro';
 
   // Delta total de Elo reciente (suma de ratingDiff)
   const totalEloChange = matches
@@ -290,6 +302,7 @@ export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceR
     streakEloChange,
     lastMatchDate,
     overallLastMatchDate,
+    overallLastMatchTimestamp,
     totalEloChange,
     isPlayingNow,
     ongoingMatch,
