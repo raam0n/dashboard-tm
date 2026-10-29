@@ -61,6 +61,5 @@ dashboard TM/
 │   ├── civs-maps.js    # Estadísticas agrupadas de civs y mapas
 │   └── app.js          # Controlador principal y navegación por pestañas
 ├── index.html          # Interfaz principal
-├── lucas.html          # Copia del build original de respaldo
 └── server.js           # Servidor local ligero
 ```
