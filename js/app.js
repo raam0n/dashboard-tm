@@ -1,5 +1,12 @@
 import { CONFIG } from './config.js';
-import { getActivePlayerIds, saveActivePlayerIds, getPlayerStats } from './api.js';
+import { 
+  getActivePlayerIds, 
+  getAllConfiguredPlayerIds, 
+  getDisabledPlayerIds, 
+  saveDisabledPlayerIds, 
+  saveActivePlayerIds, 
+  getPlayerStats 
+} from './api.js';
 import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js';
 import { renderWeeklyView } from './weekly.js';
 import { renderCivsAndMapsView } from './civs-maps.js';
@@ -28,7 +35,19 @@ const elements = {
   addPlayerBtn: document.getElementById('addPlayerBtn'),
   confirmAddBtn: document.getElementById('confirmAddBtn'),
   cancelAddBtn: document.getElementById('cancelAddBtn'),
-  navTabs: document.querySelectorAll('.nav-tab')
+  navTabs: document.querySelectorAll('.nav-tab'),
+  // Personalización / Checklist de Jugadores
+  managePlayersBtn: document.getElementById('managePlayersBtn'),
+  managePlayersModal: document.getElementById('managePlayersModal'),
+  closeManageBtn: document.getElementById('closeManageBtn'),
+  playersChecklistContainer: document.getElementById('playersChecklistContainer'),
+  searchPlayersListInput: document.getElementById('searchPlayersListInput'),
+  selectAllPlayersBtn: document.getElementById('selectAllPlayersBtn'),
+  deselectAllPlayersBtn: document.getElementById('deselectAllPlayersBtn'),
+  resetDefaultPlayersBtn: document.getElementById('resetDefaultPlayersBtn'),
+  applyPlayersListBtn: document.getElementById('applyPlayersListBtn'),
+  checklistSummaryText: document.getElementById('checklistSummaryText'),
+  activeCountBadge: document.getElementById('activeCountBadge')
 };
 
 /**
@@ -77,21 +96,82 @@ function setupEventListeners() {
   elements.confirmAddBtn.addEventListener('click', async () => {
     const val = elements.addPlayerInput.value.trim();
     if (!val) return;
+    const allConfigured = getAllConfiguredPlayerIds();
     const newIds = val.split(',')
       .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n) && !state.playerIds.includes(n));
+      .filter(n => !isNaN(n) && !allConfigured.includes(n));
 
     if (newIds.length > 0) {
-      state.playerIds.push(...newIds);
-      saveActivePlayerIds(state.playerIds);
+      allConfigured.push(...newIds);
+      saveActivePlayerIds(allConfigured);
+      // Aseguramos que los nuevos no estén deshabilitados
+      const disabled = getDisabledPlayerIds().filter(id => !newIds.includes(id));
+      saveDisabledPlayerIds(disabled);
+      state.playerIds = getActivePlayerIds();
       elements.addPlayerModal.classList.remove('active');
       await loadAllData(true);
     } else {
-      alert('Ingresa un ID numérico de jugador válido (que no esté ya en la lista).');
+      alert('Ingresa uno o varios IDs numéricos válidos (que no estén ya en la lista).');
     }
   });
 
-  // Cerrar modal al hacer clic en el fondo oscuro
+  // Modal Personalizar / Tildar Jugadores
+  elements.managePlayersBtn.addEventListener('click', () => {
+    openManagePlayersModal();
+  });
+
+  elements.closeManageBtn.addEventListener('click', () => {
+    elements.managePlayersModal.classList.remove('active');
+  });
+
+  elements.selectAllPlayersBtn.addEventListener('click', () => {
+    elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = true;
+      cb.closest('.player-check-item').classList.add('checked');
+    });
+    updateChecklistSummary();
+  });
+
+  elements.deselectAllPlayersBtn.addEventListener('click', () => {
+    elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = false;
+      cb.closest('.player-check-item').classList.remove('checked');
+    });
+    updateChecklistSummary();
+  });
+
+  elements.resetDefaultPlayersBtn.addEventListener('click', async () => {
+    if (!confirm('¿Deseas restaurar la lista oficial con los 26 jugadores del grupo?')) return;
+    localStorage.removeItem(CONFIG.STORAGE_KEY_PLAYERS);
+    localStorage.removeItem(CONFIG.STORAGE_KEY_DISABLED);
+    state.playerIds = getActivePlayerIds();
+    elements.managePlayersModal.classList.remove('active');
+    await loadAllData(true);
+  });
+
+  elements.applyPlayersListBtn.addEventListener('click', async () => {
+    const disabled = [];
+    elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      const pid = parseInt(cb.value, 10);
+      if (!cb.checked) {
+        disabled.push(pid);
+      }
+    });
+    saveDisabledPlayerIds(disabled);
+    state.playerIds = getActivePlayerIds();
+    elements.managePlayersModal.classList.remove('active');
+    await loadAllData(false);
+  });
+
+  elements.searchPlayersListInput.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    elements.playersChecklistContainer.querySelectorAll('.player-check-item').forEach(item => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(q) ? 'flex' : 'none';
+    });
+  });
+
+  // Cerrar modales al hacer clic en el fondo oscuro
   elements.modalOverlay.addEventListener('click', (e) => {
     if (e.target === elements.modalOverlay) {
       elements.modalOverlay.classList.remove('active');
@@ -101,6 +181,12 @@ function setupEventListeners() {
   elements.addPlayerModal.addEventListener('click', (e) => {
     if (e.target === elements.addPlayerModal) {
       elements.addPlayerModal.classList.remove('active');
+    }
+  });
+
+  elements.managePlayersModal.addEventListener('click', (e) => {
+    if (e.target === elements.managePlayersModal) {
+      elements.managePlayersModal.classList.remove('active');
     }
   });
 }
@@ -140,6 +226,10 @@ async function loadAllData(forceRefresh = false) {
  * Renderiza la vista según la solapa activa
  */
 function renderCurrentView() {
+  if (elements.activeCountBadge) {
+    elements.activeCountBadge.textContent = state.playerIds.length;
+  }
+
   // Siempre actualizamos el banner de live con las partidas que estén en curso (en 1v1 o Team)
   const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
   renderLiveBanner(allCurrent, elements.liveBannerContainer);
@@ -187,12 +277,69 @@ function onCardClick(player) {
 }
 
 /**
- * Quita un jugador de la lista
+ * Abre el modal para gestionar / tildar jugadores
+ */
+function openManagePlayersModal() {
+  const allConfigured = getAllConfiguredPlayerIds();
+  const disabledIds = getDisabledPlayerIds();
+  
+  // Mapa de nombres predeterminados conocidos
+  const nameMap = new Map();
+  CONFIG.DEFAULT_PLAYERS.forEach(p => nameMap.set(p.id, p.name));
+  
+  // También usamos los nombres que ya hayamos cargado de la API
+  [...state.playersData1v1, ...state.playersDataTeam].forEach(p => {
+    if (p && p.profileId && p.name) {
+      nameMap.set(p.profileId, p.name);
+    }
+  });
+
+  elements.playersChecklistContainer.innerHTML = allConfigured.map(id => {
+    const isChecked = !disabledIds.includes(id);
+    const playerName = nameMap.get(id) || `Jugador #${id}`;
+    return `
+      <label class="player-check-item ${isChecked ? 'checked' : ''}">
+        <input type="checkbox" value="${id}" ${isChecked ? 'checked' : ''}>
+        <div class="player-check-info">
+          <span class="player-check-name" title="${playerName}">${playerName}</span>
+          <span class="player-check-id">ID: ${id}</span>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.closest('.player-check-item').classList.toggle('checked', cb.checked);
+      updateChecklistSummary();
+    });
+  });
+
+  elements.searchPlayersListInput.value = '';
+  updateChecklistSummary();
+  elements.managePlayersModal.classList.add('active');
+}
+
+/**
+ * Actualiza el contador de seleccionados en el modal
+ */
+function updateChecklistSummary() {
+  const total = elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]').length;
+  const checked = elements.playersChecklistContainer.querySelectorAll('input[type="checkbox"]:checked').length;
+  elements.checklistSummaryText.textContent = `${checked} de ${total} seleccionados`;
+}
+
+/**
+ * Quita un jugador de la lista (lo oculta/destilda)
  */
 async function onRemovePlayer(profileId) {
-  if (!confirm('¿Deseas quitar este jugador de la lista?')) return;
-  state.playerIds = state.playerIds.filter(id => id !== profileId);
-  saveActivePlayerIds(state.playerIds);
+  if (!confirm('¿Deseas ocultar este jugador del dashboard? Podrás volver a tildarlo en cualquier momento desde el botón "👥 Jugadores".')) return;
+  const disabled = getDisabledPlayerIds();
+  if (!disabled.includes(profileId)) {
+    disabled.push(profileId);
+    saveDisabledPlayerIds(disabled);
+  }
+  state.playerIds = getActivePlayerIds();
   state.playersData1v1 = state.playersData1v1.filter(p => p.profileId !== profileId);
   state.playersDataTeam = state.playersDataTeam.filter(p => p.profileId !== profileId);
   renderCurrentView();

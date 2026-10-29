@@ -37,11 +37,14 @@
 
     <!-- Acciones -->
     <div class="header-actions">
+      <button class="btn" id="managePlayersBtn" title="Gestionar, tildar u ocultar jugadores">
+        👥 Jugadores (<span id="activeCountBadge">0</span>)
+      </button>
       <button class="btn" id="refreshBtn" title="Forzar actualización de datos">
         🔄 Refrescar
       </button>
       <button class="btn btn-primary" id="addPlayerBtn" title="Agregar un nuevo jugador por ID">
-        ➕ Agregar Jugador
+        ➕ Agregar
       </button>
     </div>
   </header>
@@ -60,6 +63,42 @@
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal-container" id="modalContainer">
       <!-- Rellenado por showPlayerModal -->
+    </div>
+  </div>
+
+  <!-- Modal Gestionar / Tildar Jugadores -->
+  <div class="modal-overlay" id="managePlayersModal">
+    <div class="modal-container" style="max-width: 620px;">
+      <button class="modal-close" id="closeManageBtn">&times;</button>
+      <div class="modal-title-row">
+        <h2>👥 Personalizar Jugadores</h2>
+      </div>
+      <p style="color:#aaa; font-size:0.9rem; margin-bottom:14px;">
+        Tildá o destildá los jugadores para elegir quiénes aparecen en el dashboard. Los cambios se guardan en tu navegador.
+      </p>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
+        <input 
+          type="text" 
+          id="searchPlayersListInput" 
+          placeholder="🔍 Buscar por nombre o ID..." 
+          style="flex:1; min-width:180px; padding:6px 12px; background:#111; border:1px solid #444; border-radius:6px; color:#fff; font-size:0.9rem;"
+        />
+        <div style="display:flex; gap:6px;">
+          <button class="btn" id="selectAllPlayersBtn" style="font-size:0.8rem; padding:4px 8px;">Tildar Todos</button>
+          <button class="btn" id="deselectAllPlayersBtn" style="font-size:0.8rem; padding:4px 8px;">Destildar Todos</button>
+          <button class="btn" id="resetDefaultPlayersBtn" style="font-size:0.8rem; padding:4px 8px;" title="Restaura la lista original">↺ Restaurar</button>
+        </div>
+      </div>
+
+      <div id="playersChecklistContainer" class="players-checklist-grid">
+        <!-- Renderizado dinámicamente -->
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:18px; border-top:1px solid rgba(255,255,255,0.08); padding-top:14px;">
+        <span style="font-size:0.85rem; color:#888;" id="checklistSummaryText">0 seleccionados</span>
+        <button class="btn btn-primary" id="applyPlayersListBtn">Aplicar Cambios</button>
+      </div>
     </div>
   </div>
 

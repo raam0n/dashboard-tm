@@ -23,8 +23,18 @@ export function getFlagUrl(countryCode) {
 
 /**
  * Obtiene la lista actual de IDs (de URL, localStorage o lista por defecto)
+ * y excluye los que el usuario haya destildado / deshabilitado.
  */
 export function getActivePlayerIds() {
+  const allIds = getAllConfiguredPlayerIds();
+  const disabledIds = getDisabledPlayerIds();
+  return allIds.filter(id => !disabledIds.includes(id));
+}
+
+/**
+ * Obtiene todos los IDs conocidos (por defecto + agregados por el usuario)
+ */
+export function getAllConfiguredPlayerIds() {
   const urlParams = new URLSearchParams(window.location.search);
   const idsParam = urlParams.get('ids');
   if (idsParam) {
@@ -36,7 +46,11 @@ export function getActivePlayerIds() {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Aseguramos que los nuevos default estén presentes también
+        const merged = [...new Set([...CONFIG.DEFAULT_PLAYER_IDS, ...parsed])];
+        return merged;
+      }
     } catch (e) {
       console.warn('Error leyendo localStorage:', e);
     }
@@ -46,7 +60,30 @@ export function getActivePlayerIds() {
 }
 
 /**
- * Guarda los IDs en localStorage
+ * Obtiene los IDs que el usuario destildó para ocultar
+ */
+export function getDisabledPlayerIds() {
+  const stored = localStorage.getItem(CONFIG.STORAGE_KEY_DISABLED);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {
+      console.warn('Error leyendo disabled IDs:', e);
+    }
+  }
+  return [];
+}
+
+/**
+ * Guarda los IDs deshabilitados (destildados)
+ */
+export function saveDisabledPlayerIds(disabledIds) {
+  localStorage.setItem(CONFIG.STORAGE_KEY_DISABLED, JSON.stringify(disabledIds));
+}
+
+/**
+ * Guarda todos los IDs en localStorage
  */
 export function saveActivePlayerIds(ids) {
   localStorage.setItem(CONFIG.STORAGE_KEY_PLAYERS, JSON.stringify(ids));
