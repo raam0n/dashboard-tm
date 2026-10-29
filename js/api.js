@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261028c';
+import { CONFIG } from './config.js?v=20261028d';
 
 // Cache para evitar peticiones redundantes
 const profileCache = new Map();
@@ -219,6 +219,7 @@ function mapMatch(m, targetProfileId) {
     finished,
     duration: finished && started ? (finished - started) : (started ? Math.floor(Date.now() / 1000 - started) : 0),
     mapName: m.mapName || 'Unknown Map',
+    mapImageUrl: m.mapImageUrl || (m.map ? `https://backend.cdn.aoe2companion.com/public/aoe2/de/maps/${m.map}.png` : ''),
     gameMode: m.gameModeName || 'RM',
     leaderboardId: m.leaderboardId,
     player: targetPlayer,

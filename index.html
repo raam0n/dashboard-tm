@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="assets/icons/logo-128.png" type="image/png">
   <title>AOE2 Group Dashboard - TM</title>
-  <link rel="stylesheet" href="css/style.css?v=20261028c">
+  <link rel="stylesheet" href="css/style.css?v=20261028d">
 </head>
 <body>
 
@@ -52,6 +52,15 @@
   <!-- Banner Superior Live Now -->
   <section class="live-banner-container" id="liveBannerContainer">
     <!-- Renderizado dinámicamente -->
+  </section>
+
+  <!-- Barra de Ordenamiento para Ranking (RM 1v1 y RM Team) -->
+  <section class="ranking-toolbar" id="rankingToolbar">
+    <div class="sort-toggle-group">
+      <span class="sort-label">Ordenar por:</span>
+      <button type="button" class="sort-btn active" data-sort="current">⚡ ELO Actual</button>
+      <button type="button" class="sort-btn" data-sort="max">🏆 ELO Máximo</button>
+    </div>
   </section>
 
   <!-- Contenedor Principal de Contenido (Grilla o Vistas) -->
@@ -123,6 +132,6 @@
   </div>
 
   <!-- Script Principal -->
-  <script type="module" src="js/app.js?v=20261028c"></script>
+  <script type="module" src="js/app.js?v=20261028d"></script>
 </body>
 </html>

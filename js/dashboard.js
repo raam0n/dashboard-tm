@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js?v=20261028c';
+import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js?v=20261028d';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -163,9 +163,16 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
 /**
  * Renderiza la grilla de tarjetas de jugadores
  */
-export function renderPlayersGrid(playersData, container, onCardClick, onRemovePlayer) {
-  // Filtramos los válidos y ordenamos descendentemente por currentElo
-  const sorted = [...playersData.filter(Boolean)].sort((a, b) => b.currentElo - a.currentElo);
+export function renderPlayersGrid(playersData, container, onCardClick, onRemovePlayer, sortBy = 'current') {
+  // Filtramos los válidos y ordenamos descendentemente por currentElo o maxElo según corresponda
+  const sorted = [...playersData.filter(Boolean)].sort((a, b) => {
+    if (sortBy === 'max') {
+      if (b.maxElo !== a.maxElo) return b.maxElo - a.maxElo;
+      return b.currentElo - a.currentElo;
+    }
+    if (b.currentElo !== a.currentElo) return b.currentElo - a.currentElo;
+    return b.maxElo - a.maxElo;
+  });
 
   if (sorted.length === 0) {
     container.innerHTML = `<div class="loading-box"><p>No hay datos de jugadores cargados.</p></div>`;
@@ -206,28 +213,38 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
       rachaHtml = `Racha: <span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}${ptsText}</span>`;
     }
 
-    // Últimas 10 civs
-    const recentCivs = player.matches.slice(0, 10).map((m, mIdx) => {
+    // Últimas 10 partidas (Civ arriba + recuadro del Mapa abajo)
+    const recentMatchesHtml = player.matches.slice(0, 10).map((m) => {
       const civName = m.player?.civ || 'britons';
       const isOngoing = m.status === 'ongoing';
       const isWon = m.player?.won === true;
+      const mapName = m.mapName || 'Unknown Map';
 
       let borderClass = 'civ-loss';
       if (isOngoing) borderClass = 'civ-ongoing';
       else if (isWon) borderClass = 'civ-win';
 
       const tooltip = isOngoing
-        ? `${civName} (Jugando ahora en ${m.mapName})`
-        : `${civName} - ${isWon ? 'Victoria' : 'Derrota'} (${m.mapName})`;
+        ? `${civName} • Jugando ahora en ${mapName}`
+        : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
+
+      const mapBoxHtml = m.mapImageUrl
+        ? `<img src="${m.mapImageUrl}" class="match-map-icon" alt="${mapName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+           <div class="map-diamond-fallback" style="display:none;"><span>?</span></div>`
+        : `<div class="map-diamond-fallback"><span>?</span></div>`;
 
       return `
-        <img 
-          src="${getCivIconUrl(civName)}" 
-          class="civ-shield-icon ${borderClass}" 
-          title="${tooltip}"
-          alt="${civName}"
-          onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
-        />
+        <div class="last-match-col" title="${tooltip}">
+          <img 
+            src="${getCivIconUrl(civName)}" 
+            class="civ-shield-icon ${borderClass}" 
+            alt="${civName}"
+            onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
+          />
+          <div class="match-map-frame">
+            ${mapBoxHtml}
+          </div>
+        </div>
       `;
     }).join('');
 
@@ -244,7 +261,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
         ${player.isPlayingNow ? '<span class="card-live-tag">Live now</span>' : ''}
       </div>
       <div class="card-stats-row">
-        Now: <span class="elo-now">${player.currentElo}</span> - Max: <span class="elo-max">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
+        Now: <span class="elo-now ${sortBy === 'current' ? 'elo-active-sort' : ''}">${player.currentElo}</span> - Max: <span class="elo-max ${sortBy === 'max' ? 'elo-active-sort' : ''}">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
       </div>
       <div class="card-last-match-row">
         <span>Últ. partida ${player.lastMatchDate || 'Sin registro'}</span>
@@ -252,12 +269,12 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
         <span>${rachaHtml}</span>
       </div>
       <div class="card-civs-dropdown">
-        <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar emblemas de civilizaciones">
+        <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar últimas partidas">
           <span class="toggle-arrow">${isCivsExpanded ? '▼' : '▶'}</span>
-          <span>Last Played Civilizations</span>
+          <span>Last Matches</span>
         </button>
         <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
-          ${recentCivs || '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>'}
+          ${recentMatchesHtml || '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>'}
         </div>
       </div>
       <button class="remove-player-btn" title="Quitar jugador">×</button>

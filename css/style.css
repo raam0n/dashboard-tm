@@ -410,6 +410,56 @@ body {
   animation: pulse 1.5s infinite;
 }
 
+/* Barra de ordenamiento (ELO Actual / ELO Máximo) */
+.ranking-toolbar {
+  width: 100%;
+  max-width: 1440px;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.sort-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sort-label {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.sort-btn {
+  background: transparent;
+  color: #aaa;
+  border: 1px solid transparent;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sort-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sort-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: rgba(96, 165, 250, 0.5);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
 /* Métricas de Elo */
 .card-stats-row {
   font-size: 1.05rem;
@@ -432,6 +482,12 @@ body {
 .elo-max, .elo-avg {
   color: #eee;
   font-weight: 700;
+}
+
+.elo-max.elo-active-sort {
+  color: #fbbf24;
+  font-weight: 800;
+  font-size: 1.15rem;
 }
 
 /* Línea de última partida y racha entre Now y Last Played Civilizations */
@@ -498,11 +554,11 @@ body {
 
 .civs-icons-row {
   display: flex;
-  gap: 6px;
-  align-items: center;
+  gap: 7px;
+  align-items: flex-start;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 2px;
+  padding: 6px 2px;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE / Edge */
 }
@@ -515,20 +571,64 @@ body {
   display: none; /* Chrome, Safari, Edge */
 }
 
+.last-match-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.last-match-col:hover {
+  transform: translateY(-2px);
+  z-index: 5;
+}
+
 .civ-shield-icon {
   width: 34px;
   height: 34px;
   border-radius: 50%;
   background: #111;
   object-fit: cover;
-  transition: transform 0.15s ease;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
 }
 
-.civ-shield-icon:hover {
-  transform: scale(1.15);
-  z-index: 5;
+.match-map-frame {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.match-map-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+}
+
+.map-diamond-fallback {
+  width: 23px;
+  height: 23px;
+  background: #23252b;
+  border: 1.5px solid #8a7350;
+  transform: rotate(45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.65);
+}
+
+.map-diamond-fallback span {
+  transform: rotate(-45deg);
+  color: #facc15;
+  font-weight: 800;
+  font-size: 0.78rem;
+  line-height: 1;
 }
 
 .civ-win {

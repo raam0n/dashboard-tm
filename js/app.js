@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261028c';
+import { CONFIG } from './config.js?v=20261028d';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -10,14 +10,15 @@ import {
   fetchGroupLiveMatches,
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp
-} from './api.js?v=20261028c';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261028c';
-import { renderWeeklyView } from './weekly.js?v=20261028c';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261028c';
+} from './api.js?v=20261028d';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261028d';
+import { renderWeeklyView } from './weekly.js?v=20261028d';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261028d';
 
 // Estado global de la aplicación
 const state = {
   currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'weekly' | 'civs'
+  eloSortBy: 'current', // 'current' | 'max'
   weeklyMode: 'rm_1v1', // 'rm_1v1' | 'rm_team'
   civsMode: 'rm_1v1',   // 'rm_1v1' | 'rm_team'
   playerIds: getActivePlayerIds(),
@@ -31,6 +32,8 @@ const state = {
 // Referencias a elementos del DOM
 const elements = {
   liveBannerContainer: document.getElementById('liveBannerContainer'),
+  rankingToolbar: document.getElementById('rankingToolbar'),
+  sortBtns: document.querySelectorAll('.sort-btn'),
   contentArea: document.getElementById('contentArea'),
   modalOverlay: document.getElementById('modalOverlay'),
   modalContainer: document.getElementById('modalContainer'),
@@ -74,6 +77,16 @@ function setupEventListeners() {
       elements.navTabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       state.currentTab = tab.dataset.tab;
+      renderCurrentView();
+    });
+  });
+
+  // Ordenar por ELO Actual vs ELO Máximo
+  elements.sortBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      elements.sortBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.eloSortBy = btn.dataset.sort;
       renderCurrentView();
     });
   });
@@ -288,6 +301,12 @@ function renderCurrentView() {
   const allCurrent = [...state.playersData1v1, ...state.playersDataTeam];
   renderLiveBanner(allCurrent, elements.liveBannerContainer, state.liveMatches, state.playerIds);
 
+  // Mostrar/ocultar barra de ordenamiento solo en solapas de ranking
+  if (elements.rankingToolbar) {
+    const isRankingTab = state.currentTab === 'rm_1v1' || state.currentTab === 'rm_team';
+    elements.rankingToolbar.style.display = isRankingTab ? 'flex' : 'none';
+  }
+
   if (state.isLoading) return;
 
   if (state.currentTab === 'rm_1v1') {
@@ -296,7 +315,8 @@ function renderCurrentView() {
       state.playersData1v1,
       elements.contentArea,
       onCardClick,
-      onRemovePlayer
+      onRemovePlayer,
+      state.eloSortBy
     );
   } else if (state.currentTab === 'rm_team') {
     elements.contentArea.className = 'cards-grid';
@@ -304,7 +324,8 @@ function renderCurrentView() {
       state.playersDataTeam,
       elements.contentArea,
       onCardClick,
-      onRemovePlayer
+      onRemovePlayer,
+      state.eloSortBy
     );
   } else if (state.currentTab === 'weekly') {
     elements.contentArea.className = '';
