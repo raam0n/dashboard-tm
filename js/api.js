@@ -123,7 +123,9 @@ function mapMatch(m, targetProfileId) {
   }
 
   const targetPlayer = allPlayers.find(p => p.profileId === targetProfileId) || null;
-  const opponents = allPlayers.filter(p => p.profileId !== targetProfileId);
+  const opponents = targetPlayer
+    ? allPlayers.filter(p => p.team !== targetPlayer.team)
+    : allPlayers.filter(p => p.profileId !== targetProfileId);
 
   return {
     matchId: m.matchId,

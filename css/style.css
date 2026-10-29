@@ -362,14 +362,40 @@ body {
   font-weight: 700;
 }
 
-/* Fila de civilizaciones jugadas */
-.card-civs-label {
-  font-size: 0.9rem;
-  color: #888;
-  margin-bottom: 8px;
-  display: flex;
+/* Fila desplegable de civilizaciones jugadas en cada tarjeta */
+.card-civs-dropdown {
+  margin-top: 2px;
+}
+
+.card-civs-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.88rem;
+  color: #aaa;
+  cursor: pointer;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.card-civs-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.card-civs-toggle.open {
+  margin-bottom: 8px;
+  color: #ddd;
+  border-color: rgba(37, 99, 235, 0.5);
+}
+
+.toggle-arrow {
+  font-size: 0.72rem;
+  color: #f59e0b;
 }
 
 .streak-indicator {
@@ -388,6 +414,10 @@ body {
   padding: 4px 2px;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE / Edge */
+}
+
+.civs-icons-row.hidden {
+  display: none;
 }
 
 .civs-icons-row::-webkit-scrollbar {
@@ -515,6 +545,110 @@ body {
 .modal-title-row h2 {
   font-size: 1.8rem;
   color: #fff;
+}
+
+/* Botón volver a jugador anterior en Modal */
+.modal-back-btn {
+  background: rgba(37, 99, 235, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.modal-back-btn:hover {
+  background: rgba(37, 99, 235, 0.35);
+  color: #fff;
+}
+
+/* Secciones Colapsables en Modal */
+.modal-collapsible-section {
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.modal-section-header {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  padding: 12px 16px;
+  font-size: 1.05rem;
+  color: #f59e0b;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.modal-section-header:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.collapse-chevron {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.modal-section-body {
+  padding: 14px;
+}
+
+.modal-section-body.collapsed {
+  display: none;
+}
+
+/* Link al perfil del rival en la tabla de historial */
+.rivals-cell-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.rival-profile-link {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.rival-profile-link:hover {
+  background: rgba(37, 99, 235, 0.25);
+  border-color: #3b82f6;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.rival-name-text {
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+  font-weight: 600;
+}
+
+.rival-elo-text {
+  color: #9ca3af;
+  font-size: 0.8rem;
 }
 
 /* Sección Civs en Modal */

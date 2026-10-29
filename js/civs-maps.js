@@ -1,7 +1,9 @@
 import { getCivIconUrl } from './api.js';
 
+let activeSubView = 'civs'; // 'civs' | 'maps'
+
 /**
- * Renderiza la vista de Top Civilizaciones y Mapas del grupo con toggle entre RM 1v1 y RM Team
+ * Renderiza la vista de Top Civilizaciones y Mapas del grupo con toggle entre Civs/Mapas y RM 1v1/RM Team
  */
 export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_1v1', onModeChange) {
   const allMatches = [];
@@ -86,6 +88,46 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
     ? 'Análisis acumulado de elecciones de civilización y mapas en partidas por equipos (RM Team).' 
     : 'Análisis acumulado de elecciones de civilización y mapas en partidas individuales (RM 1vs1).';
 
+  const civSectionHtml = `
+    <div>
+      <h3 style="color:#f59e0b; margin-bottom: 12px;">🛡️ Top Civilizaciones (${sortedCivs.length})</h3>
+      <table class="matches-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Civilización</th>
+            <th>Partidas</th>
+            <th>V/D</th>
+            <th>Winrate</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${civRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de partidas para este modo</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const mapSectionHtml = `
+    <div>
+      <h3 style="color:#0099ff; margin-bottom: 12px;">🗺️ Rendimiento por Mapa (${sortedMaps.length})</h3>
+      <table class="matches-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Mapa</th>
+            <th>Partidas</th>
+            <th>V/D</th>
+            <th>Winrate</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${mapRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de mapas para este modo</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
   container.innerHTML = `
     <div class="view-container">
       <div class="view-header-row">
@@ -93,58 +135,48 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
           <h2>🗺️ Civilizaciones y Mapas más Jugados (${modeLabel})</h2>
           <p class="subtitle">${modeSubtitle}</p>
         </div>
-        <div class="mode-toggle-group">
-          <button class="mode-toggle-btn ${currentMode === 'rm_1v1' ? 'active' : ''}" data-mode="rm_1v1">
-            <span>⚔️</span> RM 1vs1
-          </button>
-          <button class="mode-toggle-btn ${currentMode === 'rm_team' ? 'active' : ''}" data-mode="rm_team">
-            <span>🛡️</span> RM Team
-          </button>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+          <!-- Toggle entre Civilizaciones y Mapas -->
+          <div class="mode-toggle-group">
+            <button class="mode-toggle-btn subview-toggle-btn ${activeSubView === 'civs' ? 'active' : ''}" data-subview="civs">
+              <span>🛡️</span> Civilizaciones
+            </button>
+            <button class="mode-toggle-btn subview-toggle-btn ${activeSubView === 'maps' ? 'active' : ''}" data-subview="maps">
+              <span>🗺️</span> Mapas
+            </button>
+          </div>
+
+          <!-- Toggle entre RM 1vs1 y RM Team -->
+          <div class="mode-toggle-group">
+            <button class="mode-toggle-btn leaderboard-toggle-btn ${currentMode === 'rm_1v1' ? 'active' : ''}" data-mode="rm_1v1">
+              <span>⚔️</span> RM 1vs1
+            </button>
+            <button class="mode-toggle-btn leaderboard-toggle-btn ${currentMode === 'rm_team' ? 'active' : ''}" data-mode="rm_team">
+              <span>🛡️</span> RM Team
+            </button>
+          </div>
         </div>
       </div>
 
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px;">
-        <div>
-          <h3 style="color:#f59e0b; margin-bottom: 12px;">🛡️ Top Civilizaciones</h3>
-          <table class="matches-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Civilización</th>
-                <th>Partidas</th>
-                <th>V/D</th>
-                <th>Winrate</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${civRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de partidas para este modo</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-
-        <div>
-          <h3 style="color:#0099ff; margin-bottom: 12px;">🗺️ Rendimiento por Mapa</h3>
-          <table class="matches-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Mapa</th>
-                <th>Partidas</th>
-                <th>V/D</th>
-                <th>Winrate</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${mapRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin datos de mapas para este modo</td></tr>'}
-            </tbody>
-          </table>
-        </div>
+      <div>
+        ${activeSubView === 'maps' ? mapSectionHtml : civSectionHtml}
       </div>
     </div>
   `;
 
-  // Listener para el toggle
-  container.querySelectorAll('.mode-toggle-btn').forEach(btn => {
+  // Listener para el toggle de Civs vs Mapas
+  container.querySelectorAll('.subview-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const subview = btn.dataset.subview;
+      if (subview && subview !== activeSubView) {
+        activeSubView = subview;
+        renderCivsAndMapsView(playersData, container, currentMode, onModeChange);
+      }
+    });
+  });
+
+  // Listener para el toggle de RM 1v1 vs RM Team
+  container.querySelectorAll('.leaderboard-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
       if (mode && onModeChange && mode !== currentMode) {

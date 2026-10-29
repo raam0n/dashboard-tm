@@ -1,6 +1,8 @@
-import { getCivIconUrl, getFlagUrl } from './api.js';
+import { getCivIconUrl, getFlagUrl, getPlayerStats } from './api.js';
 
 let liveTimerInterval = null;
+// Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
+const expandedCardsCivs = new Set();
 
 /**
  * Renderiza el banner superior de "Live now"
@@ -156,6 +158,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
     }).join('');
 
     const flagUrl = getFlagUrl(player.country);
+    const isCivsExpanded = expandedCardsCivs.has(player.profileId);
 
     const card = document.createElement('div');
     card.className = `player-card ${rankClass}`;
@@ -169,18 +172,37 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
       <div class="card-stats-row">
         Now: <span class="elo-now">${player.currentElo}</span> ${diffHtml} - Max: <span class="elo-max">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
       </div>
-      <div class="card-civs-label">
-        Last Played Civilizations: ${streakHtml} ${deltaHtml}
-      </div>
-      <div class="civs-icons-row">
-        ${recentCivs || '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>'}
+      <div class="card-civs-dropdown">
+        <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar emblemas de civilizaciones">
+          <span class="toggle-arrow">${isCivsExpanded ? '▼' : '▶'}</span>
+          <span>Last Played Civilizations: ${streakHtml} ${deltaHtml}</span>
+        </button>
+        <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
+          ${recentCivs || '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>'}
+        </div>
       </div>
       <button class="remove-player-btn" title="Quitar jugador">×</button>
     `;
 
+    // Desplegable de emblemas de civilizaciones en la tarjeta
+    const civsToggleBtn = card.querySelector('.card-civs-toggle');
+    const civsRow = card.querySelector('.civs-icons-row');
+    const toggleArrow = card.querySelector('.toggle-arrow');
+    civsToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const nowOpen = civsRow.classList.toggle('hidden') === false;
+      civsToggleBtn.classList.toggle('open', nowOpen);
+      toggleArrow.textContent = nowOpen ? '▼' : '▶';
+      if (nowOpen) {
+        expandedCardsCivs.add(player.profileId);
+      } else {
+        expandedCardsCivs.delete(player.profileId);
+      }
+    });
+
     // Click en la tarjeta para ver estadísticas
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.remove-player-btn')) return;
+      if (e.target.closest('.remove-player-btn') || e.target.closest('.card-civs-toggle')) return;
       if (onCardClick) onCardClick(player);
     });
 
@@ -198,7 +220,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
 /**
  * Muestra el modal con los detalles completos del jugador
  */
-export function showPlayerModal(player, modalContainer, modalOverlay) {
+export function showPlayerModal(player, modalContainer, modalOverlay, previousPlayers = []) {
   // Calculamos estadísticas por civilización
   const civStats = {};
   player.matches.forEach(m => {
@@ -236,7 +258,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay) {
   const matchesRowsHtml = player.matches.map(m => {
     const isOngoing = m.status === 'ongoing';
     const isWon = m.player?.won === true;
-    const opponent = m.opponents && m.opponents[0] ? m.opponents[0] : null;
+    const opponentsList = m.opponents && m.opponents.length > 0 ? m.opponents : [];
     const dateStr = m.started ? new Date(m.started * 1000).toLocaleDateString() : '-';
 
     let resultHtml = isOngoing ? '<span class="red" style="font-weight:bold;">En curso...</span>' : (isWon ? '<span class="green" style="font-weight:bold;">Victoria</span>' : '<span class="red" style="font-weight:bold;">Derrota</span>');
@@ -245,50 +267,86 @@ export function showPlayerModal(player, modalContainer, modalOverlay) {
     const eloDiffStr = eloChange != null ? (eloChange > 0 ? `+${eloChange}` : `${eloChange}`) : '-';
     const eloClass = eloChange > 0 ? 'green' : (eloChange < 0 ? 'red' : '');
 
-    const oppCiv = opponent?.civ ? `<img src="${getCivIconUrl(opponent.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
+    const rivalsHtml = opponentsList.length > 0
+      ? opponentsList.map(opp => {
+          const oppCivImg = opp.civ ? `<img src="${getCivIconUrl(opp.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';">` : '';
+          if (opp.profileId) {
+            return `
+              <button type="button" class="rival-profile-link" data-profile-id="${opp.profileId}" title="Ver perfil de ${opp.name}">
+                ${oppCivImg}
+                <span class="rival-name-text">${opp.name || 'Rival'}</span>
+                <span class="rival-elo-text">(${opp.rating ?? '?'})</span>
+              </button>
+            `;
+          }
+          return `<span>${oppCivImg} ${opp.name || 'Rival'} (${opp.rating ?? '?'})</span>`;
+        }).join(' ')
+      : '-';
 
     return `
       <tr>
         <td>${dateStr}</td>
         <td><strong>${m.mapName}</strong></td>
-        <td><img src="${getCivIconUrl(m.player?.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;"> ${m.player?.civ || '-'}</td>
-        <td>${oppCiv} ${opponent?.name || 'Rival'} (${opponent?.rating ?? '?'})</td>
+        <td><img src="${getCivIconUrl(m.player?.civ)}" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:4px;" onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"> ${m.player?.civ || '-'}</td>
+        <td><div class="rivals-cell-list">${rivalsHtml}</div></td>
         <td>${resultHtml}</td>
         <td class="${eloClass}"><strong>${eloDiffStr}</strong></td>
       </tr>
     `;
   }).join('');
 
+  const prevPlayer = previousPlayers.length > 0 ? previousPlayers[previousPlayers.length - 1] : null;
+  const backBtnHtml = prevPlayer
+    ? `<button type="button" class="modal-back-btn" id="modalBackBtn">← Volver a ${prevPlayer.name}</button>`
+    : '';
+
   modalContainer.innerHTML = `
     <button class="modal-close" id="modalCloseBtn">&times;</button>
+    ${backBtnHtml}
     <div class="modal-title-row">
       <img src="${getFlagUrl(player.country)}" style="width:36px; border-radius:4px;">
       <h2>${player.name}</h2>
       <span style="color:#0099ff; font-weight:800; font-size:1.3rem; margin-left:auto;">${player.currentElo} Elo</span>
     </div>
 
-    <div class="modal-section-title">Civilizaciones Jugadas Recientemente</div>
-    <div class="civs-stats-grid">
-      ${civsHtml || '<p style="color:#777;">No hay datos de civilizaciones suficientes.</p>'}
+    <!-- 1. Primero el Historial de Últimas Partidas (Colapsable) -->
+    <div class="modal-collapsible-section">
+      <button type="button" class="modal-section-header open" data-target="modalHistoryBody">
+        <span>📜 Historial de Últimas Partidas (${player.leaderboardId === 'rm_1v1' ? '1v1' : 'Team'})</span>
+        <span class="collapse-chevron">▼</span>
+      </button>
+      <div id="modalHistoryBody" class="modal-section-body">
+        <div style="overflow-x:auto;">
+          <table class="matches-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Mapa</th>
+                <th>Civilización</th>
+                <th>Rival (click para ver perfil)</th>
+                <th>Resultado</th>
+                <th>Elo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matchesRowsHtml || '<tr><td colspan="6">Sin partidas registradas</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
-    <div class="modal-section-title">Historial de Últimas Partidas (${player.leaderboardId === 'rm_1v1' ? '1v1' : 'Team'})</div>
-    <div style="overflow-x:auto;">
-      <table class="matches-table">
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Mapa</th>
-            <th>Civilización</th>
-            <th>Rival</th>
-            <th>Resultado</th>
-            <th>Elo</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${matchesRowsHtml || '<tr><td colspan="6">Sin partidas registradas</td></tr>'}
-        </tbody>
-      </table>
+    <!-- 2. Abajo las Civilizaciones Jugadas Recientemente (Colapsable) -->
+    <div class="modal-collapsible-section">
+      <button type="button" class="modal-section-header open" data-target="modalCivsBody">
+        <span>🛡️ Civilizaciones Jugadas Recientemente (${civList.length})</span>
+        <span class="collapse-chevron">▼</span>
+      </button>
+      <div id="modalCivsBody" class="modal-section-body">
+        <div class="civs-stats-grid">
+          ${civsHtml || '<p style="color:#777;">No hay datos de civilizaciones suficientes.</p>'}
+        </div>
+      </div>
     </div>
   `;
 
@@ -297,4 +355,53 @@ export function showPlayerModal(player, modalContainer, modalOverlay) {
   document.getElementById('modalCloseBtn').onclick = () => {
     modalOverlay.classList.remove('active');
   };
+
+  // Botón volver al jugador anterior
+  const backBtn = document.getElementById('modalBackBtn');
+  if (backBtn && prevPlayer) {
+    backBtn.onclick = () => {
+      const nextStack = previousPlayers.slice(0, -1);
+      showPlayerModal(prevPlayer, modalContainer, modalOverlay, nextStack);
+    };
+  }
+
+  // Eventos para colapsar / desplegar las secciones del modal
+  modalContainer.querySelectorAll('.modal-section-header').forEach(headerBtn => {
+    headerBtn.addEventListener('click', () => {
+      const targetId = headerBtn.dataset.target;
+      const bodyEl = modalContainer.querySelector(`#${targetId}`);
+      const chevronEl = headerBtn.querySelector('.collapse-chevron');
+      if (!bodyEl) return;
+      const isCollapsed = bodyEl.classList.toggle('collapsed');
+      headerBtn.classList.toggle('open', !isCollapsed);
+      if (chevronEl) chevronEl.textContent = isCollapsed ? '▶' : '▼';
+    });
+  });
+
+  // Eventos para abrir el perfil del rival al hacer click en el historial
+  modalContainer.querySelectorAll('.rival-profile-link').forEach(rivalBtn => {
+    rivalBtn.addEventListener('click', async () => {
+      const rivalId = parseInt(rivalBtn.dataset.profileId, 10);
+      if (!rivalId) return;
+
+      modalContainer.innerHTML = `
+        <button class="modal-close" id="modalCloseBtn">&times;</button>
+        <div class="loading-box" style="padding: 40px 20px;">
+          <div class="spinner"></div>
+          <p>Cargando perfil del rival...</p>
+        </div>
+      `;
+      document.getElementById('modalCloseBtn').onclick = () => {
+        modalOverlay.classList.remove('active');
+      };
+
+      const rivalStats = await getPlayerStats(rivalId, player.leaderboardId);
+      if (rivalStats) {
+        showPlayerModal(rivalStats, modalContainer, modalOverlay, [...previousPlayers, player]);
+      } else {
+        alert('No se pudo cargar el perfil del rival.');
+        showPlayerModal(player, modalContainer, modalOverlay, previousPlayers);
+      }
+    });
+  });
 }
