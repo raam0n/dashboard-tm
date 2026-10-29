@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029b';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029d';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -184,10 +184,10 @@ export function renderLiveBanner(playersData, container, extraLiveMatches = [], 
 }
 
 /**
- * Renderiza la grilla de tarjetas de jugadores (solo activos en el último mes)
+ * Renderiza la grilla de tarjetas o tabla de jugadores (solo activos en el último mes)
  * y debajo la sección de inactivos (> 30 días sin jugar ese modo), igual que en Winrate Semanal.
  */
-export function renderPlayersGrid(playersData, container, onCardClick, onRemovePlayer, sortBy = 'current', leaderboardId = 'rm_1v1') {
+export function renderPlayersGrid(playersData, container, onCardClick, onRemovePlayer, sortBy = 'current', leaderboardId = 'rm_1v1', viewMode = 'grid') {
   const validPlayers = playersData.filter(Boolean);
 
   if (validPlayers.length === 0) {
@@ -216,155 +216,310 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
     emptyMsg.style.width = '100%';
     emptyMsg.innerHTML = `<p>No hay jugadores con partidas registradas en los últimos 30 días para este modo.</p>`;
     container.appendChild(emptyMsg);
-  }
+  } else if (viewMode === 'list') {
+    // MODO LISTA (Tabla compacta)
+    const listWrap = document.createElement('div');
+    listWrap.className = 'view-container ranking-list-container';
 
-  activePlayers.forEach((player, index) => {
-    const rank = index + 1;
-    let rankClass = '';
-    let stampClass = 'stamp-other';
+    const rowsHtml = activePlayers.map((player, index) => {
+      const rank = index + 1;
+      let stampClass = 'stamp-other';
+      if (rank === 1) stampClass = 'stamp-1';
+      else if (rank === 2) stampClass = 'stamp-2';
+      else if (rank === 3) stampClass = 'stamp-3';
 
-    if (rank === 1) {
-      rankClass = 'rank-1';
-      stampClass = 'stamp-1';
-    } else if (rank === 2) {
-      rankClass = 'rank-2';
-      stampClass = 'stamp-2';
-    } else if (rank === 3) {
-      rankClass = 'rank-3';
-      stampClass = 'stamp-3';
-    }
+      // Racha
+      let rachaTextHtml = '<span style="color:#777;">0</span>';
+      if (player.streak !== 0) {
+        const isWinStreak = player.streak > 0;
+        const streakArrow = isWinStreak ? '↑' : '↓';
+        const streakColor = isWinStreak ? 'green' : 'red';
+        const pts = player.streakEloChange || 0;
+        const ptsSign = pts > 0 ? '+' : '';
+        const ptsText = pts !== 0 ? ` (${ptsSign}${pts})` : '';
+        rachaTextHtml = `<span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}${ptsText}</span>`;
+      }
 
-    if (player.isPlayingNow) {
-      rankClass += ' is-playing';
-    }
+      // Escudos de últimas 10 partidas compactos
+      const recentCivsHtml = player.matches.slice(0, 10).map((m) => {
+        const civName = m.player?.civ || 'britons';
+        const isOngoing = m.status === 'ongoing';
+        const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
+        const isWon = m.player?.won === true;
+        const mapName = m.mapName || 'Unknown Map';
 
-    // Racha actual y puntos ganados/perdidos durante esa racha
-    let rachaHtml = 'Racha: <span style="color:#777;">0</span>';
-    if (player.streak !== 0) {
-      const isWinStreak = player.streak > 0;
-      const streakArrow = isWinStreak ? '↑' : '↓';
-      const streakColor = isWinStreak ? 'green' : 'red';
-      const pts = player.streakEloChange || 0;
-      const ptsSign = pts > 0 ? '+' : '';
-      const ptsText = pts !== 0 ? ` (${ptsSign}${pts})` : '';
-      rachaHtml = `Racha: <span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}${ptsText}</span>`;
-    }
+        let borderClass = 'civ-loss';
+        if (isOngoing) borderClass = 'civ-ongoing';
+        else if (isAbandoned) borderClass = 'civ-abandoned';
+        else if (isWon) borderClass = 'civ-win';
 
-    // Últimas 10 partidas (Civ arriba + recuadro del Mapa abajo)
-    const recentMatchesHtml = player.matches.slice(0, 10).map((m) => {
-      const civName = m.player?.civ || 'britons';
-      const isOngoing = m.status === 'ongoing';
-      const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
-      const isWon = m.player?.won === true;
-      const mapName = m.mapName || 'Unknown Map';
+        const tooltip = isOngoing
+          ? `${civName} • Jugando ahora en ${mapName}`
+          : isAbandoned
+            ? `${civName} • Abandonada en ${mapName}`
+            : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
 
-      let borderClass = 'civ-loss';
-      if (isOngoing) borderClass = 'civ-ongoing';
-      else if (isAbandoned) borderClass = 'civ-abandoned';
-      else if (isWon) borderClass = 'civ-win';
+        const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : '#';
 
-      const tooltip = isOngoing
-        ? `${civName} • Jugando ahora en ${mapName}`
-        : isAbandoned
-          ? `${civName} • Abandonada en ${mapName}`
-          : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
+        return `
+          <a
+            href="${matchUrl}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="list-civ-link"
+            title="${tooltip} • Click para ver estadísticas en AoE2Companion"
+            onclick="event.stopPropagation();"
+          >
+            <img
+              src="${getCivIconUrl(civName)}"
+              class="list-civ-shield ${borderClass}"
+              alt="${civName}"
+              onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
+            />
+          </a>
+        `;
+      }).join('');
 
-      const mapBoxHtml = m.mapImageUrl
-        ? `<img src="${m.mapImageUrl}" class="match-map-icon" alt="${mapName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-           <div class="map-diamond-fallback" style="display:none;"><span>?</span></div>`
-        : `<div class="map-diamond-fallback"><span>?</span></div>`;
-
-      const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : '#';
+      const emptyMatchesMsg = !player.matchesLoaded
+        ? '<span style="font-size:0.78rem; color:#888;">Cargando...</span>'
+        : '<span style="font-size:0.78rem; color:#666;">-</span>';
 
       return `
-        <a 
-          href="${matchUrl}" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          class="last-match-col is-link" 
-          title="${tooltip} • Click para ver estadísticas en AoE2Companion"
-          onclick="event.stopPropagation();"
-        >
-          <img 
-            src="${getCivIconUrl(civName)}" 
-            class="civ-shield-icon ${borderClass}" 
-            alt="${civName}"
-            onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
-          />
-          <div class="match-map-frame">
-            ${mapBoxHtml}
-          </div>
-        </a>
+        <tr class="ranking-list-row ${player.isPlayingNow ? 'is-playing-row' : ''}" data-profile-id="${player.profileId}">
+          <td class="col-rank">
+            <span class="list-rank-badge ${stampClass}">#${rank}</span>
+          </td>
+          <td class="col-player">
+            <div class="list-player-cell">
+              <img src="${getFlagUrl(player.country)}" class="list-player-flag" alt="${player.country}">
+              <span class="list-player-name" title="${player.name}">${player.name}</span>
+              ${player.isPlayingNow ? '<span class="card-live-tag">Live now</span>' : ''}
+            </div>
+          </td>
+          <td class="col-elo-now">
+            <span class="elo-now ${sortBy === 'current' ? 'elo-active-sort' : ''}">${player.currentElo}</span>
+          </td>
+          <td class="col-elo-max">
+            <span class="elo-max ${sortBy === 'max' ? 'elo-active-sort' : ''}">${player.maxElo}</span>
+          </td>
+          <td class="col-elo-avg">
+            <span class="elo-avg">${player.averageEloLast20}</span>
+          </td>
+          <td class="col-streak">
+            ${rachaTextHtml}
+          </td>
+          <td class="col-lastmatch">
+            <span class="list-lastmatch-text">${player.lastMatchDate || 'Sin registro'}</span>
+          </td>
+          <td class="col-recent-civs">
+            <div class="list-civs-row">
+              ${recentCivsHtml || emptyMatchesMsg}
+            </div>
+          </td>
+          <td class="col-actions">
+            <button type="button" class="remove-player-list-btn" data-remove-id="${player.profileId}" title="Quitar jugador">×</button>
+          </td>
+        </tr>
       `;
     }).join('');
 
-    const emptyMatchesMsg = !player.matchesLoaded
-      ? '<span style="font-size:0.8rem; color:#888;">Cargando historial de partidas...</span>'
-      : '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>';
-
-    const flagUrl = getFlagUrl(player.country);
-    const isCivsExpanded = expandedCardsCivs.has(player.profileId);
-
-    const card = document.createElement('div');
-    card.className = `player-card ${rankClass}`;
-    card.innerHTML = `
-      <div class="position-stamp ${stampClass}">${rank}</div>
-      <div class="card-header">
-        <img src="${flagUrl}" class="card-flag" alt="${player.country}">
-        <span class="player-name" title="${player.name}">${player.name}</span>
-        ${player.isPlayingNow ? '<span class="card-live-tag">Live now</span>' : ''}
+    listWrap.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table class="matches-table ranking-list-table">
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Jugador</th>
+              <th>ELO Actual</th>
+              <th>ELO Máximo</th>
+              <th>Prom. (20)</th>
+              <th>Racha</th>
+              <th>Últ. Partida</th>
+              <th>Últimas Partidas (Civs)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
       </div>
-      <div class="card-stats-row">
-        Now: <span class="elo-now ${sortBy === 'current' ? 'elo-active-sort' : ''}">${player.currentElo}</span> - Max: <span class="elo-max ${sortBy === 'max' ? 'elo-active-sort' : ''}">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
-      </div>
-      <div class="card-last-match-row">
-        <span>Últ. partida ${player.lastMatchDate || 'Sin registro'}</span>
-        <span class="meta-separator">•</span>
-        <span>${rachaHtml}</span>
-      </div>
-      <div class="card-civs-dropdown">
-        <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar últimas partidas">
-          <span class="toggle-arrow">${isCivsExpanded ? '▼' : '▶'}</span>
-          <span>Last Matches</span>
-        </button>
-        <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
-          ${recentMatchesHtml || emptyMatchesMsg}
-        </div>
-      </div>
-      <button class="remove-player-btn" title="Quitar jugador">×</button>
     `;
 
-    // Desplegable de emblemas de civilizaciones en la tarjeta
-    const civsToggleBtn = card.querySelector('.card-civs-toggle');
-    const civsRow = card.querySelector('.civs-icons-row');
-    const toggleArrow = card.querySelector('.toggle-arrow');
-    civsToggleBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const nowOpen = civsRow.classList.toggle('hidden') === false;
-      civsToggleBtn.classList.toggle('open', nowOpen);
-      toggleArrow.textContent = nowOpen ? '▼' : '▶';
-      if (nowOpen) {
-        expandedCardsCivs.add(player.profileId);
-      } else {
-        expandedCardsCivs.delete(player.profileId);
-      }
-    });
-
-    // Click en la tarjeta para ver estadísticas
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.remove-player-btn') || e.target.closest('.card-civs-toggle')) return;
-      if (onCardClick) onCardClick(player);
+    // Click en fila para abrir el modal de detalles del jugador
+    listWrap.querySelectorAll('.ranking-list-row[data-profile-id]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.remove-player-list-btn') || e.target.closest('.list-civ-link')) return;
+        const pid = parseInt(row.dataset.profileId, 10);
+        const targetPlayer = activePlayers.find(p => p.profileId === pid);
+        if (targetPlayer && onCardClick) {
+          onCardClick(targetPlayer);
+        }
+      });
     });
 
     // Click en botón quitar jugador
-    const removeBtn = card.querySelector('.remove-player-btn');
-    removeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (onRemovePlayer) onRemovePlayer(player.profileId);
+    listWrap.querySelectorAll('.remove-player-list-btn[data-remove-id]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pid = parseInt(btn.dataset.removeId, 10);
+        if (pid && onRemovePlayer) {
+          onRemovePlayer(pid);
+        }
+      });
     });
 
-    container.appendChild(card);
-  });
+    container.appendChild(listWrap);
+  } else {
+    // MODO BLOQUES (Tarjetas)
+    activePlayers.forEach((player, index) => {
+      const rank = index + 1;
+      let rankClass = '';
+      let stampClass = 'stamp-other';
+
+      if (rank === 1) {
+        rankClass = 'rank-1';
+        stampClass = 'stamp-1';
+      } else if (rank === 2) {
+        rankClass = 'rank-2';
+        stampClass = 'stamp-2';
+      } else if (rank === 3) {
+        rankClass = 'rank-3';
+        stampClass = 'stamp-3';
+      }
+
+      if (player.isPlayingNow) {
+        rankClass += ' is-playing';
+      }
+
+      // Racha actual y puntos ganados/perdidos durante esa racha
+      let rachaHtml = 'Racha: <span style="color:#777;">0</span>';
+      if (player.streak !== 0) {
+        const isWinStreak = player.streak > 0;
+        const streakArrow = isWinStreak ? '↑' : '↓';
+        const streakColor = isWinStreak ? 'green' : 'red';
+        const pts = player.streakEloChange || 0;
+        const ptsSign = pts > 0 ? '+' : '';
+        const ptsText = pts !== 0 ? ` (${ptsSign}${pts})` : '';
+        rachaHtml = `Racha: <span class="streak-indicator ${streakColor}">${streakArrow}${Math.abs(player.streak)}${ptsText}</span>`;
+      }
+
+      // Últimas 10 partidas (Civ arriba + recuadro del Mapa abajo)
+      const recentMatchesHtml = player.matches.slice(0, 10).map((m) => {
+        const civName = m.player?.civ || 'britons';
+        const isOngoing = m.status === 'ongoing';
+        const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
+        const isWon = m.player?.won === true;
+        const mapName = m.mapName || 'Unknown Map';
+
+        let borderClass = 'civ-loss';
+        if (isOngoing) borderClass = 'civ-ongoing';
+        else if (isAbandoned) borderClass = 'civ-abandoned';
+        else if (isWon) borderClass = 'civ-win';
+
+        const tooltip = isOngoing
+          ? `${civName} • Jugando ahora en ${mapName}`
+          : isAbandoned
+            ? `${civName} • Abandonada en ${mapName}`
+            : `${civName} • ${isWon ? 'Victoria' : 'Derrota'} en ${mapName}`;
+
+        const mapBoxHtml = m.mapImageUrl
+          ? `<img src="${m.mapImageUrl}" class="match-map-icon" alt="${mapName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+             <div class="map-diamond-fallback" style="display:none;"><span>?</span></div>`
+          : `<div class="map-diamond-fallback"><span>?</span></div>`;
+
+        const matchUrl = m.matchId ? `https://www.aoe2companion.com/matches/${m.matchId}` : '#';
+
+        return `
+          <a 
+            href="${matchUrl}" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            class="last-match-col is-link" 
+            title="${tooltip} • Click para ver estadísticas en AoE2Companion"
+            onclick="event.stopPropagation();"
+          >
+            <img 
+              src="${getCivIconUrl(civName)}" 
+              class="civ-shield-icon ${borderClass}" 
+              alt="${civName}"
+              onerror="this.onerror=null;this.src='assets/icons/logo-128.png';"
+            />
+            <div class="match-map-frame">
+              ${mapBoxHtml}
+            </div>
+          </a>
+        `;
+      }).join('');
+
+      const emptyMatchesMsg = !player.matchesLoaded
+        ? '<span style="font-size:0.8rem; color:#888;">Cargando historial de partidas...</span>'
+        : '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>';
+
+      const flagUrl = getFlagUrl(player.country);
+      const isCivsExpanded = expandedCardsCivs.has(player.profileId);
+
+      const card = document.createElement('div');
+      card.className = `player-card ${rankClass}`;
+      card.innerHTML = `
+        <div class="position-stamp ${stampClass}">${rank}</div>
+        <div class="card-header">
+          <img src="${flagUrl}" class="card-flag" alt="${player.country}">
+          <span class="player-name" title="${player.name}">${player.name}</span>
+          ${player.isPlayingNow ? '<span class="card-live-tag">Live now</span>' : ''}
+        </div>
+        <div class="card-stats-row">
+          Now: <span class="elo-now ${sortBy === 'current' ? 'elo-active-sort' : ''}">${player.currentElo}</span> - Max: <span class="elo-max ${sortBy === 'max' ? 'elo-active-sort' : ''}">${player.maxElo}</span> - Avg: <span class="elo-avg">${player.averageEloLast20}</span>
+        </div>
+        <div class="card-last-match-row">
+          <span>Últ. partida ${player.lastMatchDate || 'Sin registro'}</span>
+          <span class="meta-separator">•</span>
+          <span>${rachaHtml}</span>
+        </div>
+        <div class="card-civs-dropdown">
+          <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar últimas partidas">
+            <span class="toggle-arrow">${isCivsExpanded ? '▼' : '▶'}</span>
+            <span>Last Matches</span>
+          </button>
+          <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
+            ${recentMatchesHtml || emptyMatchesMsg}
+          </div>
+        </div>
+        <button class="remove-player-btn" title="Quitar jugador">×</button>
+      `;
+
+      // Desplegable de emblemas de civilizaciones en la tarjeta
+      const civsToggleBtn = card.querySelector('.card-civs-toggle');
+      const civsRow = card.querySelector('.civs-icons-row');
+      const toggleArrow = card.querySelector('.toggle-arrow');
+      civsToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nowOpen = civsRow.classList.toggle('hidden') === false;
+        civsToggleBtn.classList.toggle('open', nowOpen);
+        toggleArrow.textContent = nowOpen ? '▼' : '▶';
+        if (nowOpen) {
+          expandedCardsCivs.add(player.profileId);
+        } else {
+          expandedCardsCivs.delete(player.profileId);
+        }
+      });
+
+      // Click en la tarjeta para ver estadísticas
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.remove-player-btn') || e.target.closest('.card-civs-toggle')) return;
+        if (onCardClick) onCardClick(player);
+      });
+
+      // Click en botón quitar jugador
+      const removeBtn = card.querySelector('.remove-player-btn');
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (onRemovePlayer) onRemovePlayer(player.profileId);
+      });
+
+      container.appendChild(card);
+    });
+  }
 
   // Sección inferior de jugadores inactivos en el último mes (mismo formato que en Winrate Semanal)
   if (inactivePlayers.length > 0) {

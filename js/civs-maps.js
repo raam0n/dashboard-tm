@@ -1,4 +1,4 @@
-import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029b';
+import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029d';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 

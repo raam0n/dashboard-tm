@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="assets/icons/logo-128.png" type="image/png">
   <title>AOE2 Group Dashboard - TM</title>
-  <link rel="stylesheet" href="css/style.css?v=20261029b">
+  <link rel="stylesheet" href="css/style.css?v=20261029d">
 </head>
 <body>
 
@@ -57,12 +57,17 @@
     <!-- Renderizado dinámicamente -->
   </section>
 
-  <!-- Barra de Ordenamiento para Ranking (RM 1v1 y RM Team) -->
+  <!-- Barra de Ordenamiento y Vista para Ranking (RM 1v1 y RM Team) -->
   <section class="ranking-toolbar" id="rankingToolbar">
+    <div class="sort-toggle-group view-toggle-group">
+      <span class="sort-label">Vista:</span>
+      <button type="button" class="sort-btn view-btn active" data-view="grid" title="Ver en bloques (tarjetas)">▦ Bloques</button>
+      <button type="button" class="sort-btn view-btn" data-view="list" title="Ver en lista (tabla compacta)">☰ Lista</button>
+    </div>
     <div class="sort-toggle-group">
       <span class="sort-label">Ordenar por:</span>
-      <button type="button" class="sort-btn active" data-sort="current">⚡ ELO Actual</button>
-      <button type="button" class="sort-btn" data-sort="max">🏆 ELO Máximo</button>
+      <button type="button" class="sort-btn elo-sort-btn active" data-sort="current">⚡ ELO Actual</button>
+      <button type="button" class="sort-btn elo-sort-btn" data-sort="max">🏆 ELO Máximo</button>
     </div>
   </section>
 
@@ -135,6 +140,6 @@
   </div>
 
   <!-- Script Principal -->
-  <script type="module" src="js/app.js?v=20261029b"></script>
+  <script type="module" src="js/app.js?v=20261029d"></script>
 </body>
 </html>

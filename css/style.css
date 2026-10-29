@@ -460,12 +460,15 @@ body {
   animation: pulse 1.5s infinite;
 }
 
-/* Barra de ordenamiento (ELO Actual / ELO Máximo) */
+/* Barra de ordenamiento (ELO Actual / ELO Máximo) y Toggle de Vista */
 .ranking-toolbar {
   width: 100%;
   max-width: 1440px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
@@ -1836,4 +1839,145 @@ a.last-match-col:hover .match-map-frame {
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   Modo Lista (Tabla Compacta en RM 1vs1 y RM Team)
+   ========================================================================== */
+.ranking-list-wrapper {
+  width: 100%;
+  max-width: 1440px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ranking-list-container {
+  margin-top: 0;
+  padding: 16px 20px;
+}
+
+.ranking-list-table {
+  margin-top: 0;
+}
+
+.ranking-list-table th {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #9ca3af;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.ranking-list-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ranking-list-row:hover td {
+  background: rgba(37, 99, 235, 0.1) !important;
+}
+
+.ranking-list-row.is-playing-row td {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ranking-list-row.is-playing-row:hover td {
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+.ranking-list-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.col-rank {
+  width: 60px;
+}
+
+.list-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.list-player-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.list-player-flag {
+  width: 24px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.list-player-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.list-lastmatch-text {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.list-civs-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.list-civ-link {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+.list-civ-link:hover {
+  transform: translateY(-2px) scale(1.1);
+}
+
+.list-civ-shield {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #111;
+  object-fit: cover;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.col-actions {
+  width: 40px;
+  text-align: right;
+}
+
+.remove-player-list-btn {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.remove-player-list-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
 

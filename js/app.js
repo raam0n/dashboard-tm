@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261029b';
+import { CONFIG } from './config.js?v=20261029d';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -14,19 +14,21 @@ import {
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp,
   fetchGroupRecentMatches
-} from './api.js?v=20261029b';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029b';
-import { renderWeeklyView } from './weekly.js?v=20261029b';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261029b';
-import { renderRecentMatchesView } from './history.js?v=20261029b';
+} from './api.js?v=20261029d';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029d';
+import { renderWeeklyView } from './weekly.js?v=20261029d';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261029d';
+import { renderRecentMatchesView } from './history.js?v=20261029d';
 
 // Estado global de la aplicación
 const state = {
   currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'history' | 'weekly' | 'civs'
   eloSortBy: 'current', // 'current' | 'max'
+  viewMode: localStorage.getItem(CONFIG.STORAGE_KEY_VIEW_MODE) || 'grid', // 'grid' | 'list'
   weeklyMode: 'rm_1v1', // 'rm_1v1' | 'rm_team'
   civsMode: 'rm_1v1',   // 'rm_1v1' | 'rm_team'
   recentMatchesRaw: [],
+  isLoadingHistory: false,
   historyFilters: {
     timeWindowHours: 48, // 48 horas por defecto
     mode: 'all',         // 'all' | 'rm_1v1' | 'rm_team' | 'other'
@@ -45,7 +47,8 @@ const state = {
 const elements = {
   liveBannerContainer: document.getElementById('liveBannerContainer'),
   rankingToolbar: document.getElementById('rankingToolbar'),
-  sortBtns: document.querySelectorAll('.sort-btn'),
+  sortBtns: document.querySelectorAll('.elo-sort-btn'),
+  viewBtns: document.querySelectorAll('.view-btn'),
   contentArea: document.getElementById('contentArea'),
   modalOverlay: document.getElementById('modalOverlay'),
   modalContainer: document.getElementById('modalContainer'),
@@ -99,6 +102,18 @@ function setupEventListeners() {
       elements.sortBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.eloSortBy = btn.dataset.sort;
+      renderCurrentView();
+    });
+  });
+
+  // Toggle de Vista: Bloques (grid) vs Lista (list)
+  elements.viewBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === state.viewMode);
+    btn.addEventListener('click', () => {
+      elements.viewBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.viewMode = btn.dataset.view || 'grid';
+      localStorage.setItem(CONFIG.STORAGE_KEY_VIEW_MODE, state.viewMode);
       renderCurrentView();
     });
   });
@@ -403,27 +418,63 @@ function renderCurrentView() {
   if (state.isLoading) return;
 
   if (state.currentTab === 'rm_1v1') {
-    elements.contentArea.className = 'cards-grid';
+    elements.contentArea.className = state.viewMode === 'list' ? 'ranking-list-wrapper' : 'cards-grid';
     renderPlayersGrid(
       state.playersData1v1,
       elements.contentArea,
       onCardClick,
       onRemovePlayer,
       state.eloSortBy,
-      CONFIG.LEADERBOARDS.RM_1V1
+      CONFIG.LEADERBOARDS.RM_1V1,
+      state.viewMode
     );
   } else if (state.currentTab === 'rm_team') {
-    elements.contentArea.className = 'cards-grid';
+    elements.contentArea.className = state.viewMode === 'list' ? 'ranking-list-wrapper' : 'cards-grid';
     renderPlayersGrid(
       state.playersDataTeam,
       elements.contentArea,
       onCardClick,
       onRemovePlayer,
       state.eloSortBy,
-      CONFIG.LEADERBOARDS.RM_TEAM
+      CONFIG.LEADERBOARDS.RM_TEAM,
+      state.viewMode
     );
   } else if (state.currentTab === 'history') {
     elements.contentArea.className = '';
+    if ((!state.recentMatchesRaw || state.recentMatchesRaw.length === 0) && !state.isLoadingHistory) {
+      state.isLoadingHistory = true;
+      elements.contentArea.innerHTML = `
+        <div class="loading-box">
+          <div class="spinner"></div>
+          <p>Cargando historial conjunto de partidas recientes...</p>
+        </div>
+      `;
+      fetchGroupRecentMatches(state.playerIds, 100)
+        .then(matches => {
+          state.recentMatchesRaw = matches || [];
+        })
+        .catch(err => {
+          console.warn('Error cargando historial grupal:', err);
+        })
+        .finally(() => {
+          state.isLoadingHistory = false;
+          if (state.currentTab === 'history') {
+            renderRecentMatchesView(
+              state.recentMatchesRaw,
+              elements.contentArea,
+              state.playerIds,
+              handlePlayerProfileClick,
+              state.historyFilters,
+              (newFilters) => {
+                state.historyFilters = newFilters;
+                renderCurrentView();
+              }
+            );
+          }
+        });
+      return;
+    }
+
     renderRecentMatchesView(
       state.recentMatchesRaw,
       elements.contentArea,

@@ -38,6 +38,7 @@ export const CONFIG = {
   STORAGE_KEY_PLAYERS: 'aoe2_dashboard_player_ids',
   STORAGE_KEY_DISABLED: 'aoe2_dashboard_disabled_ids',
   STORAGE_KEY_PROFILES_CACHE: 'aoe2_dashboard_profiles_cache_v1',
+  STORAGE_KEY_VIEW_MODE: 'aoe2_dashboard_view_mode',
   ACTIVE_DAYS_THRESHOLD: 30, // 30 días (último mes) para considerar activo en el ranking
   POLL_INTERVAL_MS: 30000, // 30 segundos para refresco de partidas en vivo
   LEADERBOARDS: {
