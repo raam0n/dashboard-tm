@@ -1,21 +1,51 @@
-import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261029e';
+import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261110a';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
+let internalPeriodDays = 7; // 7 | 30 | 90
+let internalSelectedPlayerId = null; // null (todos) | number (profileId)
 
 /**
- * Renderiza la vista de Top Civilizaciones y Mapas del grupo (acumulado semanal - últimos 7 días)
- * con toggle entre Civs/Mapas y RM 1v1/RM Team
+ * Renderiza la vista de Top Civilizaciones y Mapas con:
+ * - Toggle de período: Semanal (7d), Mensual (30d), Últimos 3 meses (90d)
+ * - Filtro de 1 jugador dentro de la lista de seleccionados
+ * - Toggle entre Civilizaciones / Mapas y RM 1v1 / RM Team
  */
-export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_1v1', onModeChange) {
+export function renderCivsAndMapsView(
+  playersData,
+  container,
+  currentMode = 'rm_1v1',
+  onModeChange,
+  periodDays = null,
+  onPeriodChange = null,
+  selectedPlayerId = undefined,
+  onPlayerFilterChange = null
+) {
+  const days = periodDays || internalPeriodDays || 7;
+  const currentPlayerId = selectedPlayerId !== undefined ? selectedPlayerId : internalSelectedPlayerId;
+
   const nowSec = Date.now() / 1000;
-  const oneWeekAgo = nowSec - (7 * 24 * 60 * 60);
-  const fromDateStr = formatDateDDMMYYYY(oneWeekAgo);
+  const periodAgo = nowSec - (days * 24 * 60 * 60);
+  const fromDateStr = formatDateDDMMYYYY(periodAgo);
   const toDateStr = formatDateDDMMYYYY(nowSec);
+  const periodShort = `${days}d`;
+
+  const validPlayers = playersData.filter(Boolean);
+  const selectedPlayer = currentPlayerId
+    ? validPlayers.find(p => p.profileId === currentPlayerId) || null
+    : null;
+
+  // Si el jugador filtrado ya no está en la lista de seleccionados, volvemos a todos
+  const targetPlayers = selectedPlayer ? [selectedPlayer] : validPlayers;
+
+  // Opciones ordenadas alfabéticamente para el selector de jugador
+  const sortedPlayerOptions = [...validPlayers].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
 
   const allMatches = [];
-  playersData.filter(Boolean).forEach(p => {
+  targetPlayers.forEach(p => {
     (p.matches || []).forEach(m => {
-      if (m.status === 'complete' && typeof m.player?.won === 'boolean' && m.started && m.started >= oneWeekAgo) {
+      if (m.status === 'complete' && typeof m.player?.won === 'boolean' && m.started && m.started >= periodAgo) {
         allMatches.push(m);
       }
     });
@@ -101,25 +131,40 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
   }).join('');
 
   const modeLabel = currentMode === 'rm_team' ? 'RM Team' : 'RM 1vs1';
-  const modeSubtitle = currentMode === 'rm_team' 
-    ? `Acumulado semanal (últimos 7 días: ${fromDateStr} al ${toDateStr}) de elecciones de civilización y mapas en partidas por equipos (RM Team).` 
-    : `Acumulado semanal (últimos 7 días: ${fromDateStr} al ${toDateStr}) de elecciones de civilización y mapas en partidas individuales (RM 1vs1).`;
+  const periodBadgeLabel = days === 7
+    ? 'Semanal (Últimos 7 días)'
+    : days === 30
+      ? 'Mensual (Últimos 30 días)'
+      : 'Últimos 3 meses (90 días)';
+
+  const modeDesc = currentMode === 'rm_team'
+    ? 'partidas por equipos (RM Team)'
+    : 'partidas individuales (RM 1vs1)';
+
+  const modeSubtitle = selectedPlayer
+    ? `Estadísticas de ${selectedPlayer.name} en los últimos ${days} días (${fromDateStr} al ${toDateStr}) en ${modeDesc}.`
+    : `Acumulado grupal de los últimos ${days} días (${fromDateStr} al ${toDateStr}) de elecciones de civilización y mapas en ${modeDesc}.`;
+
+  const emptyTargetLabel = selectedPlayer ? ` para ${selectedPlayer.name}` : '';
+  const loadingPlayerMsg = selectedPlayer && !selectedPlayer.matchesLoaded
+    ? `Cargando historial de partidas de ${selectedPlayer.name}...`
+    : null;
 
   const civSectionHtml = `
     <div>
-      <h3 style="color:#f59e0b; margin-bottom: 12px;">🛡️ Top Civilizaciones de la Semana (${sortedCivs.length})</h3>
+      <h3 style="color:#f59e0b; margin-bottom: 12px;">🛡️ Top Civilizaciones (${sortedCivs.length})${selectedPlayer ? ` — ${selectedPlayer.name}` : ''}</h3>
       <table class="matches-table">
         <thead>
           <tr>
             <th>#</th>
             <th>Civilización</th>
-            <th>Partidas (7d)</th>
+            <th>Partidas (${periodShort})</th>
             <th>V/D</th>
             <th>Winrate</th>
           </tr>
         </thead>
         <tbody>
-          ${civRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin partidas registradas en los últimos 7 días para este modo</td></tr>'}
+          ${civRows || `<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">${loadingPlayerMsg || `Sin partidas registradas en los últimos ${days} días${emptyTargetLabel} para este modo`}</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -127,19 +172,19 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
 
   const mapSectionHtml = `
     <div>
-      <h3 style="color:#0099ff; margin-bottom: 12px;">🗺️ Rendimiento Semanal por Mapa (${sortedMaps.length})</h3>
+      <h3 style="color:#0099ff; margin-bottom: 12px;">🗺️ Rendimiento por Mapa (${sortedMaps.length})${selectedPlayer ? ` — ${selectedPlayer.name}` : ''}</h3>
       <table class="matches-table">
         <thead>
           <tr>
             <th>#</th>
             <th>Mapa</th>
-            <th>Partidas (7d)</th>
+            <th>Partidas (${periodShort})</th>
             <th>V/D</th>
             <th>Winrate</th>
           </tr>
         </thead>
         <tbody>
-          ${mapRows || '<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">Sin mapas registrados en los últimos 7 días para este modo</td></tr>'}
+          ${mapRows || `<tr><td colspan="5" style="text-align:center; padding:20px; color:#777;">${loadingPlayerMsg || `Sin mapas registrados en los últimos ${days} días${emptyTargetLabel} para este modo`}</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -151,30 +196,68 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
         <div>
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <h2>🗺️ Civilizaciones y Mapas más Jugados (${modeLabel})</h2>
-            <span class="weekly-period-badge">📅 Acumulado Semanal (Últimos 7 días)</span>
+            <span class="weekly-period-badge">📅 ${periodBadgeLabel}</span>
+            ${selectedPlayer ? `<span class="weekly-period-badge" style="background:rgba(245, 158, 11, 0.2); border-color:rgba(245, 158, 11, 0.45); color:#fcd34d;">👤 ${selectedPlayer.name}</span>` : ''}
           </div>
           <p class="subtitle">${modeSubtitle}</p>
         </div>
-        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+
+        <!-- Toggle de Período de Tiempo: Semanal / Mensual (30d) / Últimos 3 meses (90d) -->
+        <div class="mode-toggle-group">
+          <button class="mode-toggle-btn period-toggle-btn ${days === 7 ? 'active' : ''}" data-days="7" title="Últimos 7 días">
+            Semanal
+          </button>
+          <button class="mode-toggle-btn period-toggle-btn ${days === 30 ? 'active' : ''}" data-days="30" title="Últimos 30 días">
+            Mensual (30d)
+          </button>
+          <button class="mode-toggle-btn period-toggle-btn ${days === 90 ? 'active' : ''}" data-days="90" title="Últimos 90 días">
+            Últimos 3 meses (90d)
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Filtros: Vista (Civs/Mapas), Modo (1v1/Team) y Jugador -->
+      <div class="hm-filters-bar">
+        <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:center;">
           <!-- Toggle entre Civilizaciones y Mapas -->
-          <div class="mode-toggle-group">
-            <button class="mode-toggle-btn subview-toggle-btn ${activeSubView === 'civs' ? 'active' : ''}" data-subview="civs">
-              <span>🛡️</span> Civilizaciones
-            </button>
-            <button class="mode-toggle-btn subview-toggle-btn ${activeSubView === 'maps' ? 'active' : ''}" data-subview="maps">
-              <span>🗺️</span> Mapas
-            </button>
+          <div class="hm-filter-group">
+            <span class="hm-filter-label">Vista:</span>
+            <div class="mode-toggle-group">
+              <button class="mode-toggle-btn subview-toggle-btn ${activeSubView === 'civs' ? 'active' : ''}" data-subview="civs">
+                <span>🛡️</span> Civilizaciones
+              </button>
+              <button class="mode-toggle-btn subview-toggle-btn ${activeSubView === 'maps' ? 'active' : ''}" data-subview="maps">
+                <span>🗺️</span> Mapas
+              </button>
+            </div>
           </div>
 
           <!-- Toggle entre RM 1vs1 y RM Team -->
-          <div class="mode-toggle-group">
-            <button class="mode-toggle-btn leaderboard-toggle-btn ${currentMode === 'rm_1v1' ? 'active' : ''}" data-mode="rm_1v1">
-              <span>⚔️</span> RM 1vs1
-            </button>
-            <button class="mode-toggle-btn leaderboard-toggle-btn ${currentMode === 'rm_team' ? 'active' : ''}" data-mode="rm_team">
-              <span>🛡️</span> RM Team
-            </button>
+          <div class="hm-filter-group">
+            <span class="hm-filter-label">Modo:</span>
+            <div class="mode-toggle-group">
+              <button class="mode-toggle-btn leaderboard-toggle-btn ${currentMode === 'rm_1v1' ? 'active' : ''}" data-mode="rm_1v1">
+                <span>⚔️</span> RM 1vs1
+              </button>
+              <button class="mode-toggle-btn leaderboard-toggle-btn ${currentMode === 'rm_team' ? 'active' : ''}" data-mode="rm_team">
+                <span>🛡️</span> RM Team
+              </button>
+            </div>
           </div>
+        </div>
+
+        <!-- Selector para Filtrar 1 Jugador de la lista de seleccionados -->
+        <div class="hm-filter-group" style="min-width:240px;">
+          <span class="hm-filter-label">Jugador:</span>
+          <select id="civsPlayerFilterSelect" class="hm-exclude-select">
+            <option value="">👥 Todos los seleccionados (${validPlayers.length})</option>
+            ${sortedPlayerOptions.map(p => `
+              <option value="${p.profileId}" ${selectedPlayer && selectedPlayer.profileId === p.profileId ? 'selected' : ''}>
+                ${p.name} (${p.currentElo})
+              </option>
+            `).join('')}
+          </select>
+          ${selectedPlayer ? '<button type="button" id="clearCivsPlayerFilterBtn" class="btn" style="font-size:0.8rem; padding:4px 8px;" title="Volver a ver todos los jugadores">✕ Todos</button>' : ''}
         </div>
       </div>
 
@@ -184,13 +267,28 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
     </div>
   `;
 
+  // Listener para el toggle de período (7d / 30d / 90d)
+  container.querySelectorAll('.period-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newDays = parseInt(btn.dataset.days, 10);
+      if (newDays && newDays !== days) {
+        internalPeriodDays = newDays;
+        if (onPeriodChange) {
+          onPeriodChange(newDays);
+        } else {
+          renderCivsAndMapsView(playersData, container, currentMode, onModeChange, newDays, onPeriodChange, currentPlayerId, onPlayerFilterChange);
+        }
+      }
+    });
+  });
+
   // Listener para el toggle de Civs vs Mapas
   container.querySelectorAll('.subview-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const subview = btn.dataset.subview;
       if (subview && subview !== activeSubView) {
         activeSubView = subview;
-        renderCivsAndMapsView(playersData, container, currentMode, onModeChange);
+        renderCivsAndMapsView(playersData, container, currentMode, onModeChange, days, onPeriodChange, currentPlayerId, onPlayerFilterChange);
       }
     });
   });
@@ -204,4 +302,31 @@ export function renderCivsAndMapsView(playersData, container, currentMode = 'rm_
       }
     });
   });
+
+  // Listener para el selector de jugador individual
+  const playerSelect = container.querySelector('#civsPlayerFilterSelect');
+  if (playerSelect) {
+    playerSelect.addEventListener('change', (e) => {
+      const val = e.target.value ? parseInt(e.target.value, 10) : null;
+      internalSelectedPlayerId = val;
+      if (onPlayerFilterChange) {
+        onPlayerFilterChange(val);
+      } else {
+        renderCivsAndMapsView(playersData, container, currentMode, onModeChange, days, onPeriodChange, val, onPlayerFilterChange);
+      }
+    });
+  }
+
+  // Listener para limpiar filtro de jugador
+  const clearPlayerBtn = container.querySelector('#clearCivsPlayerFilterBtn');
+  if (clearPlayerBtn) {
+    clearPlayerBtn.addEventListener('click', () => {
+      internalSelectedPlayerId = null;
+      if (onPlayerFilterChange) {
+        onPlayerFilterChange(null);
+      } else {
+        renderCivsAndMapsView(playersData, container, currentMode, onModeChange, days, onPeriodChange, null, onPlayerFilterChange);
+      }
+    });
+  }
 }

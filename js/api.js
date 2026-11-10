@@ -2,6 +2,7 @@ import { CONFIG } from './config.js?v=20261029e';
 
 // Constantes de tiempo
 export const ONE_MONTH_MS = (CONFIG.ACTIVE_DAYS_THRESHOLD || 30) * 24 * 60 * 60 * 1000;
+export const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
 export const MAX_LIVE_DURATION_SEC = 14400; // 4 horas máximo antes de considerar partida colgada/expirada
 
 // Cache en memoria para evitar peticiones redundantes
@@ -410,7 +411,7 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
   // 4. Armamos las listas iniciales para renderizar de inmediato
   const initial1v1 = playerIds.map(id => {
     const prof = profileCache.get(id);
-    const cacheKey = `${id}_${CONFIG.LEADERBOARDS.RM_1V1}_20`;
+    const cacheKey = `${id}_${CONFIG.LEADERBOARDS.RM_1V1}_100`;
     const cachedMatches = !forceRefresh && matchesCache.has(cacheKey) ? matchesCache.get(cacheKey) : [];
     return buildPlayerStatsFromProfileAndMatches(
       prof,
@@ -422,7 +423,7 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
 
   const initialTeam = playerIds.map(id => {
     const prof = profileCache.get(id);
-    const cacheKey = `${id}_${CONFIG.LEADERBOARDS.RM_TEAM}_20`;
+    const cacheKey = `${id}_${CONFIG.LEADERBOARDS.RM_TEAM}_100`;
     const cachedMatches = !forceRefresh && matchesCache.has(cacheKey) ? matchesCache.get(cacheKey) : [];
     return buildPlayerStatsFromProfileAndMatches(
       prof,
@@ -460,7 +461,7 @@ export async function fetchGroupRecentMatches(playerIds, count = 100) {
 /**
  * Obtiene el historial de partidas del jugador (con deduplicación de peticiones en vuelo)
  */
-export async function fetchMatches(profileId, leaderboardId = 'rm_1v1', count = 20, forceRefresh = false) {
+export async function fetchMatches(profileId, leaderboardId = 'rm_1v1', count = 100, forceRefresh = false) {
   const cacheKey = `${profileId}_${leaderboardId}_${count}`;
   if (!forceRefresh && matchesCache.has(cacheKey)) {
     return matchesCache.get(cacheKey);
@@ -675,6 +676,12 @@ export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = '
     (lastMatchTimestamp > 0 && (Date.now() - lastMatchTimestamp) <= ONE_MONTH_MS)
   );
 
+  // ¿Jugó en los últimos 3 meses (últimos 90 días) en este modo?
+  const isActiveLast3Months = Boolean(
+    isPlayingNow ||
+    (lastMatchTimestamp > 0 && (Date.now() - lastMatchTimestamp) <= THREE_MONTHS_MS)
+  );
+
   return {
     profileId,
     name: profile.name || `Jugador #${profileId}`,
@@ -690,6 +697,7 @@ export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = '
     overallLastMatchDate,
     overallLastMatchTimestamp,
     isActiveLastMonth,
+    isActiveLast3Months,
     totalEloChange,
     isPlayingNow,
     ongoingMatch,
@@ -701,7 +709,7 @@ export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = '
 
 /**
  * Procesa todos los datos del jugador para una solapa (1v1 o Team).
- * Si el jugador está inactivo en el último mes (> 30 días sin jugar ese modo) y no se fuerza `forceFetchMatches`,
+ * Si el jugador está inactivo en los últimos 3 meses (> 90 días sin jugar ese modo) y no se fuerza `forceFetchMatches`,
  * evita pedir el endpoint `/matches` para acelerar la carga inicial.
  */
 export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceRefresh = false, forceFetchMatches = false) {
@@ -710,11 +718,11 @@ export async function getPlayerStats(profileId, leaderboardId = 'rm_1v1', forceR
 
   const lbData = profile.leaderboards?.find(l => l.leaderboardId === leaderboardId);
   const lbLastMatchMs = lbData?.lastMatchTime ? new Date(lbData.lastMatchTime).getTime() : 0;
-  const activeInMonth = !isNaN(lbLastMatchMs) && lbLastMatchMs > 0 && (Date.now() - lbLastMatchMs) <= ONE_MONTH_MS;
+  const activeIn3Months = !isNaN(lbLastMatchMs) && lbLastMatchMs > 0 && (Date.now() - lbLastMatchMs) <= THREE_MONTHS_MS;
 
-  const shouldFetchMatches = activeInMonth || forceFetchMatches;
+  const shouldFetchMatches = activeIn3Months || forceFetchMatches;
   const matches = shouldFetchMatches
-    ? await fetchMatches(profileId, leaderboardId, 20, forceRefresh)
+    ? await fetchMatches(profileId, leaderboardId, 100, forceRefresh)
     : [];
 
   return buildPlayerStatsFromProfileAndMatches(profile, leaderboardId, matches, shouldFetchMatches);

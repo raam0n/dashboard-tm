@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261029e';
+import { CONFIG } from './config.js?v=20261110a';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -14,11 +14,11 @@ import {
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp,
   fetchGroupRecentMatches
-} from './api.js?v=20261029e';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261029f';
-import { renderWeeklyView } from './weekly.js?v=20261029e';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261029e';
-import { renderRecentMatchesView } from './history.js?v=20261029e';
+} from './api.js?v=20261110a';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261110a';
+import { renderWeeklyView } from './weekly.js?v=20261110a';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261110a';
+import { renderRecentMatchesView } from './history.js?v=20261110a';
 
 // Estado global de la aplicación
 const state = {
@@ -26,7 +26,10 @@ const state = {
   eloSortBy: 'current', // 'current' | 'max'
   viewMode: localStorage.getItem(CONFIG.STORAGE_KEY_VIEW_MODE) || 'grid', // 'grid' | 'list'
   weeklyMode: 'rm_1v1', // 'rm_1v1' | 'rm_team'
+  weeklyPeriodDays: 7,  // 7 | 30 | 90
   civsMode: 'rm_1v1',   // 'rm_1v1' | 'rm_team'
+  civsPeriodDays: 7,    // 7 | 30 | 90
+  civsSelectedPlayerId: null, // null (todos) | profileId
   recentMatchesRaw: [],
   isLoadingHistory: false,
   historyFilters: {
@@ -360,14 +363,17 @@ async function loadAllData(forceRefresh = false) {
       }
     }
 
-    // FASE 2B: Cargar el historial de 20 partidas ÚNICAMENTE para los jugadores activos en el último mes
+    // FASE 2B: Cargar el historial de hasta 100 partidas (priorizando activos en 30d y luego hasta 90d)
     async function hydrateActiveLeaderboardMatches(targetList, leaderboardId) {
-      const toHydrate = targetList.filter(p => p && p.isActiveLastMonth && (!p.matchesLoaded || forceRefresh));
+      const activeMonth = targetList.filter(p => p && p.isActiveLastMonth && (!p.matchesLoaded || forceRefresh));
+      const activeQuarter = targetList.filter(p => p && !p.isActiveLastMonth && p.isActiveLast3Months && (!p.matchesLoaded || forceRefresh));
+      const toHydrate = [...activeMonth, ...activeQuarter];
+
       for (let i = 0; i < toHydrate.length; i += batchSize) {
         if (myGen !== state.loadGeneration) return;
         const batch = toHydrate.slice(i, i + batchSize);
         const matchesBatch = await Promise.all(
-          batch.map(p => fetchMatches(p.profileId, leaderboardId, 20, forceRefresh))
+          batch.map(p => fetchMatches(p.profileId, leaderboardId, 100, forceRefresh))
         );
         if (myGen !== state.loadGeneration) return;
 
@@ -506,17 +512,73 @@ function renderCurrentView() {
   } else if (state.currentTab === 'weekly') {
     elements.contentArea.className = '';
     const data = state.weeklyMode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
-    renderWeeklyView(data, elements.contentArea, state.weeklyMode, (newMode) => {
-      state.weeklyMode = newMode;
-      renderCurrentView();
-    });
+    renderWeeklyView(
+      data,
+      elements.contentArea,
+      state.weeklyMode,
+      (newMode) => {
+        state.weeklyMode = newMode;
+        renderCurrentView();
+      },
+      state.weeklyPeriodDays,
+      (newDays) => {
+        state.weeklyPeriodDays = newDays;
+        renderCurrentView();
+      }
+    );
   } else if (state.currentTab === 'civs') {
     elements.contentArea.className = '';
     const data = state.civsMode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
-    renderCivsAndMapsView(data, elements.contentArea, state.civsMode, (newMode) => {
-      state.civsMode = newMode;
-      renderCurrentView();
-    });
+    // Si el jugador filtrado fue destildado/eliminado de la lista activa, limpiamos el filtro
+    if (state.civsSelectedPlayerId && !state.playerIds.includes(state.civsSelectedPlayerId)) {
+      state.civsSelectedPlayerId = null;
+    }
+    renderCivsAndMapsView(
+      data,
+      elements.contentArea,
+      state.civsMode,
+      (newMode) => {
+        state.civsMode = newMode;
+        ensureSelectedCivsPlayerHydrated();
+        renderCurrentView();
+      },
+      state.civsPeriodDays,
+      (newDays) => {
+        state.civsPeriodDays = newDays;
+        renderCurrentView();
+      },
+      state.civsSelectedPlayerId,
+      (newPlayerId) => {
+        state.civsSelectedPlayerId = newPlayerId;
+        ensureSelectedCivsPlayerHydrated();
+        renderCurrentView();
+      }
+    );
+  }
+}
+
+/**
+ * Si el usuario filtra un jugador específico en Top Civs & Mapas que aún no tenía sus partidas cargadas,
+ * las solicita bajo demanda y actualiza la vista.
+ */
+async function ensureSelectedCivsPlayerHydrated() {
+  const pid = state.civsSelectedPlayerId;
+  if (!pid) return;
+  const lbId = state.civsMode === 'rm_team' ? CONFIG.LEADERBOARDS.RM_TEAM : CONFIG.LEADERBOARDS.RM_1V1;
+  const targetList = state.civsMode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
+  const idx = targetList.findIndex(p => p && p.profileId === pid);
+  if (idx !== -1 && !targetList[idx].matchesLoaded) {
+    const fullStats = await getPlayerStats(pid, lbId, false, true);
+    if (fullStats) {
+      const currentIdx = targetList.findIndex(p => p && p.profileId === pid);
+      if (currentIdx !== -1) {
+        targetList[currentIdx] = fullStats;
+        syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+        if (state.currentTab === 'civs') {
+          renderCurrentView();
+        }
+      }
+    }
   }
 }
 

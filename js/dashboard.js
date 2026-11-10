@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261029f';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261110a';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -556,9 +556,10 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
  * Muestra el modal con los detalles completos del jugador
  */
 export function showPlayerModal(player, modalContainer, modalOverlay, previousPlayers = []) {
+  const recentModalMatches = (player.matches || []).slice(0, 20);
   // Calculamos estadísticas por civilización (excluyendo partidas en curso o abandonadas)
   const civStats = {};
-  player.matches.forEach(m => {
+  recentModalMatches.forEach(m => {
     if (m.status !== 'complete' || typeof m.player?.won !== 'boolean') return;
     const civ = m.player?.civ;
     if (!civ) return;
@@ -590,7 +591,7 @@ export function showPlayerModal(player, modalContainer, modalOverlay, previousPl
   `).join('');
 
   // Filas de partidas recientes
-  const matchesRowsHtml = player.matches.map(m => {
+  const matchesRowsHtml = recentModalMatches.map(m => {
     const isOngoing = m.status === 'ongoing';
     const isAbandoned = m.status === 'abandoned' || Boolean(m.abandoned);
     const isWon = m.player?.won === true;
