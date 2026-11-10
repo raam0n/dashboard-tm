@@ -1,4 +1,4 @@
-import { getCivIconUrl, formatDateDDMMYYYY, getPlayerCivsAndMapsAnalytics } from './api.js?v=20261110b';
+import { getCivIconUrl, formatDateDDMMYYYY, getPlayerCivsAndMapsAnalytics } from './api.js?v=20261110c';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 let internalPeriodDays = 7; // 7 | 30 | 90

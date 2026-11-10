@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261110b';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261110c';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones
@@ -277,8 +277,12 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
       }).join('');
 
       const emptyMatchesMsg = !player.matchesLoaded
-        ? '<span style="font-size:0.78rem; color:#888;">Cargando...</span>'
+        ? '<span class="inline-sync-tag" title="Cargando últimas 10 partidas..."><span class="mini-spinner"></span> Cargando...</span>'
         : '<span style="font-size:0.78rem; color:#666;">-</span>';
+
+      const partialLoadingTag = (recentMapsHtml && player.matches.length < 10 && !player.matchesLoaded)
+        ? `<span class="inline-sync-tag" title="Completando las ${10 - player.matches.length} partidas restantes..."><span class="mini-spinner"></span></span>`
+        : '';
 
       return `
         <tr class="ranking-list-row ${player.isPlayingNow ? 'is-playing-row' : ''}" data-profile-id="${player.profileId}">
@@ -309,7 +313,7 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
           </td>
           <td class="col-recent-civs">
             <div class="list-civs-row">
-              ${recentMapsHtml || emptyMatchesMsg}
+              ${recentMapsHtml ? (recentMapsHtml + partialLoadingTag) : emptyMatchesMsg}
             </div>
           </td>
           <td class="col-actions">
@@ -447,8 +451,12 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
       }).join('');
 
       const emptyMatchesMsg = !player.matchesLoaded
-        ? '<span style="font-size:0.8rem; color:#888;">Cargando historial de partidas...</span>'
+        ? '<span class="inline-sync-tag"><span class="mini-spinner"></span> Cargando historial de partidas...</span>'
         : '<span style="font-size:0.8rem; color:#666;">Sin partidas recientes</span>';
+
+      const partialCardLoadingTag = (recentMatchesHtml && player.matches.length < 10 && !player.matchesLoaded)
+        ? `<span class="inline-sync-tag" title="Completando las ${10 - player.matches.length} partidas restantes..."><span class="mini-spinner"></span></span>`
+        : '';
 
       const flagUrl = getFlagUrl(player.country);
       const isCivsExpanded = expandedCardsCivs.has(player.profileId);
@@ -473,10 +481,10 @@ export function renderPlayersGrid(playersData, container, onCardClick, onRemoveP
         <div class="card-civs-dropdown">
           <button type="button" class="card-civs-toggle ${isCivsExpanded ? 'open' : ''}" title="Desplegar / ocultar últimas partidas">
             <span class="toggle-arrow">${isCivsExpanded ? '▼' : '▶'}</span>
-            <span>Last Matches</span>
+            <span>Last Matches ${(!player.matchesLoaded && player.matches.length < 10) ? '<span class="mini-spinner" style="margin-left:4px;"></span>' : ''}</span>
           </button>
           <div class="civs-icons-row ${isCivsExpanded ? '' : 'hidden'}">
-            ${recentMatchesHtml || emptyMatchesMsg}
+            ${recentMatchesHtml ? (recentMatchesHtml + partialCardLoadingTag) : emptyMatchesMsg}
           </div>
         </div>
         <button class="remove-player-btn" title="Quitar jugador">×</button>

@@ -3,7 +3,7 @@ import {
   getFlagUrl,
   formatDateDDMMYYYY,
   getPlayerCivsAndMapsAnalytics
-} from './api.js?v=20261110b';
+} from './api.js?v=20261110c';
 
 let activeSubView = 'maps'; // 'civs' | 'maps' | 'both'
 

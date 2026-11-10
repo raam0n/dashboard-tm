@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261110b';
+import { CONFIG } from './config.js?v=20261110c';
 
 // Constantes de tiempo
 export const ONE_MONTH_MS = (CONFIG.ACTIVE_DAYS_THRESHOLD || 30) * 24 * 60 * 60 * 1000;
@@ -18,6 +18,10 @@ let matchesCacheUpdatedAtMs = 0;
 // Estado de paginación grupal por leaderboard ('rm_1v1' | 'rm_team')
 const groupLeaderboardPagination = new Map();
 const groupPaginationInFlight = new Map();
+
+// Registro de jugadores cuyas últimas 10 partidas ya fueron completadas individualmente (key: `${profileId}_${lbId}` -> timestampMs)
+const playerTopUpTimestampMap = new Map();
+const playerTopUpInFlight = new Map();
 
 // Caché de estadísticas condensadas por jugador y modo (`/profiles/{id}/stats/all`)
 const playerStatsAllCache = new Map();
@@ -103,6 +107,11 @@ function loadMatchesCacheFromStorage() {
           groupLeaderboardPagination.set(lbId, state);
         });
       }
+      if (parsed.topUpTimestamps && typeof parsed.topUpTimestamps === 'object') {
+        Object.entries(parsed.topUpTimestamps).forEach(([key, ts]) => {
+          playerTopUpTimestampMap.set(key, Number(ts) || 0);
+        });
+      }
     }
   } catch (e) {
     console.warn('No se pudo leer cache de partidas:', e);
@@ -111,50 +120,88 @@ function loadMatchesCacheFromStorage() {
 
 /**
  * Persiste las partidas más recientes del pool unificado en localStorage (compactadas para ahorrar espacio)
+ * y garantiza preservar siempre al menos las últimas 12 partidas de cada jugador por modo para que nunca se corten los 10 rombos.
  */
 function saveMatchesCacheToStorage() {
   try {
     if (typeof localStorage === 'undefined') return;
     const allSorted = Array.from(unifiedRawMatchesMap.values())
-      .sort((a, b) => new Date(b.started || 0).getTime() - new Date(a.started || 0).getTime())
-      .slice(0, 450)
-      .map(m => ({
-        matchId: m.matchId,
-        started: m.started,
-        finished: m.finished,
-        abandoned: m.abandoned,
-        leaderboardId: m.leaderboardId,
-        leaderboardName: m.leaderboardName,
-        gameModeName: m.gameModeName,
-        map: m.map,
-        mapName: m.mapName,
-        mapImageUrl: m.mapImageUrl,
-        server: m.server,
-        teams: Array.isArray(m.teams) ? m.teams.map(t => ({
-          teamId: t.teamId,
-          players: Array.isArray(t.players) ? t.players.map(p => ({
-            profileId: p.profileId,
-            name: p.name,
-            country: p.country,
-            civ: p.civ,
-            civName: p.civName,
-            rating: p.rating,
-            ratingDiff: p.ratingDiff,
-            won: p.won,
-            colorHex: p.colorHex
+      .sort((a, b) => new Date(b.started || 0).getTime() - new Date(a.started || 0).getTime());
+
+    const keptMatchIds = new Set();
+    const playerModeCounts = new Map();
+    const trackedSet = new Set(CONFIG.DEFAULT_PLAYERS.map(p => p.id));
+
+    const retainedMatches = [];
+    for (let i = 0; i < allSorted.length; i++) {
+      const m = allSorted[i];
+      if (!m || !m.matchId) continue;
+
+      let shouldKeep = i < 900;
+      const lbId = m.leaderboardId;
+
+      if (Array.isArray(m.teams) && (lbId === CONFIG.LEADERBOARDS.RM_1V1 || lbId === CONFIG.LEADERBOARDS.RM_TEAM)) {
+        for (const t of m.teams) {
+          for (const p of (t.players || [])) {
+            if (p && p.profileId && (trackedSet.has(p.profileId) || profileCache.has(p.profileId))) {
+              const cKey = `${p.profileId}_${lbId}`;
+              const prevCount = playerModeCounts.get(cKey) || 0;
+              if (prevCount < 12) {
+                shouldKeep = true;
+              }
+              playerModeCounts.set(cKey, prevCount + 1);
+            }
+          }
+        }
+      }
+
+      if (shouldKeep && !keptMatchIds.has(m.matchId)) {
+        keptMatchIds.add(m.matchId);
+        retainedMatches.push({
+          matchId: m.matchId,
+          started: m.started,
+          finished: m.finished,
+          abandoned: m.abandoned,
+          leaderboardId: m.leaderboardId,
+          leaderboardName: m.leaderboardName,
+          gameModeName: m.gameModeName,
+          map: m.map,
+          mapName: m.mapName,
+          mapImageUrl: m.mapImageUrl,
+          server: m.server,
+          teams: Array.isArray(m.teams) ? m.teams.map(t => ({
+            teamId: t.teamId,
+            players: Array.isArray(t.players) ? t.players.map(p => ({
+              profileId: p.profileId,
+              name: p.name,
+              country: p.country,
+              civ: p.civ,
+              civName: p.civName,
+              rating: p.rating,
+              ratingDiff: p.ratingDiff,
+              won: p.won,
+              colorHex: p.colorHex
+            })) : []
           })) : []
-        })) : []
-      }));
+        });
+      }
+    }
 
     const paginationObj = {};
     groupLeaderboardPagination.forEach((val, key) => {
       paginationObj[key] = val;
     });
 
+    const topUpObj = {};
+    playerTopUpTimestampMap.forEach((val, key) => {
+      topUpObj[key] = val;
+    });
+
     localStorage.setItem(CONFIG.STORAGE_KEY_MATCHES_CACHE, JSON.stringify({
       updatedAtMs: matchesCacheUpdatedAtMs || Date.now(),
       pagination: paginationObj,
-      matches: allSorted
+      topUpTimestamps: topUpObj,
+      matches: retainedMatches
     }));
   } catch (e) {
     console.warn('No se pudo guardar cache de partidas en localStorage:', e);
@@ -892,7 +939,7 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
       prof,
       CONFIG.LEADERBOARDS.RM_1V1,
       playerMatches,
-      true
+      null
     );
   }).filter(Boolean);
 
@@ -903,7 +950,7 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
       prof,
       CONFIG.LEADERBOARDS.RM_TEAM,
       playerMatches,
-      true
+      null
     );
   }).filter(Boolean);
 
@@ -924,6 +971,114 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
     initialTeam,
     missingProfileIds
   };
+}
+
+/**
+ * Trae hasta `targetPages` páginas grupales (ej. páginas 2, 3 y 4 = 300-400 partidas por modo)
+ * para cubrir la mayor cantidad posible de rombos de los jugadores en lote antes del relleno individual.
+ */
+export async function fetchAdditionalGroupMatchPages(playerIds, leaderboardId = 'rm_1v1', targetPages = 4, onPageLoaded = null) {
+  if (!Array.isArray(playerIds) || playerIds.length === 0) return;
+
+  const metaCurrent = groupLeaderboardPagination.get(leaderboardId) || { maxPage: 0, oldestStartedSec: Infinity, exhausted: false };
+  if (metaCurrent.exhausted || (metaCurrent.maxPage || 0) >= targetPages) {
+    return;
+  }
+
+  if (groupPaginationInFlight.has(leaderboardId)) {
+    return groupPaginationInFlight.get(leaderboardId);
+  }
+
+  const idsParam = playerIds.join(',');
+
+  const jobPromise = (async () => {
+    try {
+      let meta = groupLeaderboardPagination.get(leaderboardId) || { maxPage: 0, oldestStartedSec: Infinity, exhausted: false };
+      let nextPage = Math.max(2, (meta.maxPage || 1) + 1);
+
+      while (nextPage <= targetPages && !meta.exhausted) {
+        const res = await fetchWithRetry(
+          `${CONFIG.API_BASE_URL}/matches?per_page=100&profile_ids=${idsParam}&leaderboard_ids=${leaderboardId}&page=${nextPage}`,
+          1,
+          1500,
+          true
+        );
+        const data = await res.json();
+        const rawMatches = data.matches || [];
+
+        ingestRawMatches(rawMatches, playerIds, true);
+        updateGroupPaginationMeta(leaderboardId, nextPage, rawMatches);
+        meta = groupLeaderboardPagination.get(leaderboardId);
+
+        if (onPageLoaded) {
+          onPageLoaded(nextPage, targetPages);
+        }
+
+        if (rawMatches.length < 100) {
+          break;
+        }
+
+        nextPage += 1;
+        await new Promise(r => setTimeout(r, 260));
+      }
+    } catch (err) {
+      console.warn(`Aviso cargando páginas grupales extra (${leaderboardId}):`, err.message || err);
+    } finally {
+      groupPaginationInFlight.delete(leaderboardId);
+    }
+  })();
+
+  groupPaginationInFlight.set(leaderboardId, jobPromise);
+  return jobPromise;
+}
+
+/**
+ * Relleno quirúrgico (Alternativa 3): para cualquier jugador activo que tras las 4 páginas grupales
+ * siga teniendo menos de 10 partidas en su fila, solicita sus últimas 20 partidas de ese modo
+ * y las inyecta directamente en el pool unificado persistente (`localStorage`).
+ */
+export async function topUpPlayerLastMatches(profileId, leaderboardId = 'rm_1v1', forceRefresh = false) {
+  if (!profileId) return [];
+  const cacheKey = `${profileId}_${leaderboardId}`;
+
+  if (playerTopUpInFlight.has(cacheKey)) {
+    return playerTopUpInFlight.get(cacheKey);
+  }
+
+  const existingMatches = getPlayerMatchesFromUnifiedPool(profileId, leaderboardId);
+  if (!forceRefresh && existingMatches.length >= 10) {
+    playerTopUpTimestampMap.set(cacheKey, Date.now());
+    return existingMatches;
+  }
+
+  const reqPromise = (async () => {
+    try {
+      const res = await fetchWithRetry(
+        `${CONFIG.API_BASE_URL}/matches?per_page=20&profile_ids=${profileId}&leaderboard_ids=${leaderboardId}&page=1`,
+        1,
+        1500,
+        true
+      );
+      const data = await res.json();
+      const rawMatches = data.matches || [];
+
+      playerTopUpTimestampMap.set(cacheKey, Date.now());
+      ingestRawMatches(rawMatches, [profileId], true);
+      if (rawMatches.length === 0) {
+        saveMatchesCacheToStorage();
+      }
+
+      return getPlayerMatchesFromUnifiedPool(profileId, leaderboardId);
+    } catch (err) {
+      console.warn(`Aviso completando últimas 10 partidas de ${profileId} (${leaderboardId}):`, err.message || err);
+      return getPlayerMatchesFromUnifiedPool(profileId, leaderboardId);
+    } finally {
+      playerTopUpInFlight.delete(cacheKey);
+    }
+  })();
+
+  playerTopUpInFlight.set(cacheKey, reqPromise);
+  return reqPromise;
 }
 
 /**
@@ -1159,7 +1314,7 @@ export function getProfileOverallLastMatchDate(profile) {
 /**
  * Construye el objeto de estadísticas de un jugador para un leaderboard a partir de su perfil y sus partidas
  */
-export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = 'rm_1v1', matches = null, matchesLoaded = true) {
+export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = 'rm_1v1', matches = null, matchesLoaded = null) {
   if (!profile) return null;
 
   const profileId = profile.profileId;
@@ -1247,6 +1402,15 @@ export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = '
     (lastMatchTimestamp > 0 && (Date.now() - lastMatchTimestamp) <= THREE_MONTHS_MS)
   );
 
+  const totalLbGames = typeof lbData?.games === 'number' ? lbData.games : Infinity;
+  const topUpTs = playerTopUpTimestampMap.get(`${profileId}_${leaderboardId}`) || 0;
+  const hasTopUpCoverage = topUpTs > 0 && topUpTs >= (lastMatchTimestamp || 1);
+  const isMatchesLoaded = matchesLoaded === true ||
+    resolvedMatches.length >= 10 ||
+    resolvedMatches.length >= totalLbGames ||
+    hasTopUpCoverage ||
+    !isActiveLastMonth;
+
   return {
     profileId,
     name: profile.name || `Jugador #${profileId}`,
@@ -1267,7 +1431,7 @@ export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = '
     isPlayingNow,
     ongoingMatch,
     matches: resolvedMatches,
-    matchesLoaded: Boolean(matchesLoaded || resolvedMatches.length > 0),
+    matchesLoaded: Boolean(isMatchesLoaded),
     profile
   };
 }

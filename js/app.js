@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261110b';
+import { CONFIG } from './config.js?v=20261110c';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -10,6 +10,8 @@ import {
   fetchMatches,
   fetchGroupLiveMatches,
   fetchGroupBootstrap,
+  fetchAdditionalGroupMatchPages,
+  topUpPlayerLastMatches,
   ensureGroupMatchesCoverWindow,
   fetchPlayerCondensedStats,
   getAllUnifiedRawMatches,
@@ -18,12 +20,12 @@ import {
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp,
   fetchGroupRecentMatches
-} from './api.js?v=20261110b';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261110b';
-import { renderWeeklyView } from './weekly.js?v=20261110b';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261110b';
-import { renderRecentMatchesView } from './history.js?v=20261110b';
-import { renderAnalyticsComparisonView } from './analytics.js?v=20261110b';
+} from './api.js?v=20261110c';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261110c';
+import { renderWeeklyView } from './weekly.js?v=20261110c';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261110c';
+import { renderRecentMatchesView } from './history.js?v=20261110c';
+import { renderAnalyticsComparisonView } from './analytics.js?v=20261110c';
 
 // Estado global de la aplicación
 const state = {
@@ -84,8 +86,49 @@ const elements = {
   resetDefaultPlayersBtn: document.getElementById('resetDefaultPlayersBtn'),
   applyPlayersListBtn: document.getElementById('applyPlayersListBtn'),
   checklistSummaryText: document.getElementById('checklistSummaryText'),
-  activeCountBadge: document.getElementById('activeCountBadge')
+  activeCountBadge: document.getElementById('activeCountBadge'),
+  syncStatusPill: document.getElementById('syncStatusPill'),
+  syncStatusSpinner: document.getElementById('syncStatusSpinner'),
+  syncStatusText: document.getElementById('syncStatusText')
 };
+
+let syncHideTimer = null;
+
+/**
+ * Actualiza el indicador visual superior de sincronización / carga en segundo plano
+ * @param {string} text Mensaje de estado
+ * @param {'loading' | 'done' | 'hidden'} mode Estado visual
+ */
+function setSyncStatus(text = '', mode = 'loading') {
+  if (!elements.syncStatusPill || !elements.syncStatusText) return;
+  if (syncHideTimer) {
+    clearTimeout(syncHideTimer);
+    syncHideTimer = null;
+  }
+
+  if (mode === 'hidden' || !text) {
+    elements.syncStatusPill.classList.add('hidden');
+    elements.syncStatusPill.classList.remove('is-done');
+    return;
+  }
+
+  elements.syncStatusPill.classList.remove('hidden');
+  elements.syncStatusText.textContent = text;
+
+  if (mode === 'done') {
+    elements.syncStatusPill.classList.add('is-done');
+    if (elements.syncStatusSpinner) elements.syncStatusSpinner.classList.add('hidden');
+    syncHideTimer = setTimeout(() => {
+      if (elements.syncStatusPill) {
+        elements.syncStatusPill.classList.add('hidden');
+        elements.syncStatusPill.classList.remove('is-done');
+      }
+    }, 3000);
+  } else {
+    elements.syncStatusPill.classList.remove('is-done');
+    if (elements.syncStatusSpinner) elements.syncStatusSpinner.classList.remove('hidden');
+  }
+}
 
 /**
  * Inicialización
@@ -311,23 +354,27 @@ function rebuildPlayersFromUnifiedPool() {
   state.playersData1v1 = state.playersData1v1.map(p => {
     if (!p || !p.profile) return p;
     const matches = getPlayerMatchesFromUnifiedPool(p.profileId, CONFIG.LEADERBOARDS.RM_1V1);
-    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_1V1, matches, true);
+    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_1V1, matches, null);
   });
   state.playersDataTeam = state.playersDataTeam.map(p => {
     if (!p || !p.profile) return p;
     const matches = getPlayerMatchesFromUnifiedPool(p.profileId, CONFIG.LEADERBOARDS.RM_TEAM);
-    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_TEAM, matches, true);
+    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_TEAM, matches, null);
   });
   syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
 }
 
 /**
- * Carga los datos de los jugadores reciclando las consultas grupales en lote (Camino 1):
- * - Fase 1 (Instantánea): 5 llamadas grupales en lote que pueblan el ranking 1v1, Team, Live y el pool unificado de partidas.
- * - Fase 2 (Segundo plano suave): completa únicamente perfiles de inactivos que no estaban en caché, de a 2 por vez para no disparar bloqueos 429.
+ * Carga los datos de los jugadores combinando:
+ * - Fase 1 (Instantánea): 5 llamadas grupales en lote que pueblan el ranking 1v1, Team, Live y la página 1 del pool.
+ * - Fase 2 (Alternativa 1): Trae hasta 4 páginas grupales por modo (300-400 partidas) para poblar los rombos de la mayoría.
+ * - Fase 3 (Alternativa 3): Rellena quirúrgicamente las últimas 10 partidas solo de los jugadores activos que hayan quedado con < 10 rombos.
+ * - Fase 4 (Perfiles inactivos): Completa perfiles de inactivos que no estaban en caché.
  */
 async function loadAllData(forceRefresh = false) {
   const myGen = ++state.loadGeneration;
+
+  setSyncStatus(forceRefresh ? 'Refrescando datos del grupo...' : 'Sincronizando datos del grupo...', 'loading');
 
   if (state.playersData1v1.length === 0 && state.playersDataTeam.length === 0) {
     state.isLoading = true;
@@ -356,13 +403,68 @@ async function loadAllData(forceRefresh = false) {
     // Si el usuario está en Winrate, Civs o Analítica al refrescar, aseguramos cubrir su ventana activa
     triggerLazyDataForActiveTab(forceRefresh);
 
-    // FASE 2: Completar de forma espaciada los perfiles de jugadores inactivos que no estaban en caché
+    // Determinamos qué modo priorizar según la solapa activa
+    const prioritizeTeam = state.currentTab === 'rm_team' ||
+      (state.currentTab === 'weekly' && state.weeklyMode === 'rm_team') ||
+      (state.currentTab === 'civs' && state.civsMode === 'rm_team');
+
+    const modeOrder = prioritizeTeam
+      ? [CONFIG.LEADERBOARDS.RM_TEAM, CONFIG.LEADERBOARDS.RM_1V1]
+      : [CONFIG.LEADERBOARDS.RM_1V1, CONFIG.LEADERBOARDS.RM_TEAM];
+
+    // FASE 2 (Alternativa 1): Expandir hasta 4 páginas grupales por modo (hasta 400 partidas por modo)
+    for (const lbId of modeOrder) {
+      if (myGen !== state.loadGeneration) return;
+      const lbLabel = lbId === CONFIG.LEADERBOARDS.RM_TEAM ? 'RM Team' : 'RM 1v1';
+      await fetchAdditionalGroupMatchPages(state.playerIds, lbId, 4, (page, total) => {
+        if (myGen !== state.loadGeneration) return;
+        setSyncStatus(`Cargando partidas ${lbLabel} (pág. ${page}/${total})...`, 'loading');
+        rebuildPlayersFromUnifiedPool();
+        renderCurrentView();
+      });
+    }
+
+    if (myGen !== state.loadGeneration) return;
+    rebuildPlayersFromUnifiedPool();
+    renderCurrentView();
+
+    // FASE 3 (Alternativa 3): Completar últimas 10 partidas para los jugadores activos que aún tengan < 10 rombos
+    const pendingTopUps = [];
+    for (const lbId of modeOrder) {
+      const list = lbId === CONFIG.LEADERBOARDS.RM_TEAM ? state.playersDataTeam : state.playersData1v1;
+      list.forEach(p => {
+        if (p && p.isActiveLastMonth && p.matches.length < 10 && !p.matchesLoaded) {
+          pendingTopUps.push({ profileId: p.profileId, name: p.name, leaderboardId: lbId });
+        }
+      });
+    }
+
+    const topUpBatchSize = 2;
+    for (let i = 0; i < pendingTopUps.length; i += topUpBatchSize) {
+      if (myGen !== state.loadGeneration) return;
+      const batch = pendingTopUps.slice(i, i + topUpBatchSize);
+      const doneCount = Math.min(i + batch.length, pendingTopUps.length);
+      setSyncStatus(`Completando últimas 10 partidas (${doneCount}/${pendingTopUps.length})...`, 'loading');
+
+      await Promise.all(
+        batch.map(item => topUpPlayerLastMatches(item.profileId, item.leaderboardId, forceRefresh))
+      );
+      if (myGen !== state.loadGeneration) return;
+
+      rebuildPlayersFromUnifiedPool();
+      renderCurrentView();
+    }
+
+    // FASE 4: Completar de forma espaciada los perfiles de jugadores inactivos que no estaban en caché
     const missingProfileIds = bootstrap.missingProfileIds || [];
     const batchSize = 2;
 
     for (let i = 0; i < missingProfileIds.length; i += batchSize) {
       if (myGen !== state.loadGeneration) return;
       const batchIds = missingProfileIds.slice(i, i + batchSize);
+      const doneProfiles = Math.min(i + batchIds.length, missingProfileIds.length);
+      setSyncStatus(`Completando perfiles (${doneProfiles}/${missingProfileIds.length})...`, 'loading');
+
       const profiles = await Promise.all(batchIds.map(id => fetchProfile(id, forceRefresh)));
       if (myGen !== state.loadGeneration) return;
 
@@ -374,7 +476,7 @@ async function loadAllData(forceRefresh = false) {
             prof,
             CONFIG.LEADERBOARDS.RM_1V1,
             null,
-            true
+            null
           );
         }
         const idxT = state.playersDataTeam.findIndex(p => p.profileId === prof.profileId);
@@ -383,7 +485,7 @@ async function loadAllData(forceRefresh = false) {
             prof,
             CONFIG.LEADERBOARDS.RM_TEAM,
             null,
-            true
+            null
           );
         }
       });
@@ -391,11 +493,18 @@ async function loadAllData(forceRefresh = false) {
       syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
       renderCurrentView();
       if (i + batchSize < missingProfileIds.length) {
-        await new Promise(r => setTimeout(r, 450));
+        await new Promise(r => setTimeout(r, 400));
       }
+    }
+
+    if (myGen === state.loadGeneration) {
+      setSyncStatus('✓ Datos completos', 'done');
     }
   } catch (err) {
     console.error('Error cargando datos de jugadores:', err);
+    if (myGen === state.loadGeneration) {
+      setSyncStatus('✓ Datos actualizados', 'done');
+    }
   } finally {
     if (myGen === state.loadGeneration) {
       state.isLoading = false;
@@ -410,16 +519,22 @@ async function loadAllData(forceRefresh = false) {
 function triggerLazyDataForActiveTab(forceRefresh = false) {
   if (state.currentTab === 'weekly') {
     ensureGroupMatchesCoverWindow(state.playerIds, state.weeklyMode, state.weeklyPeriodDays, () => {
+      setSyncStatus(`Ampliando ventana de ${state.weeklyPeriodDays}d...`, 'loading');
       rebuildPlayersFromUnifiedPool();
       if (state.currentTab === 'weekly') renderCurrentView();
+    }).then(() => {
+      setSyncStatus('✓ Datos completos', 'done');
     });
   } else if (state.currentTab === 'civs') {
     if (state.civsSelectedPlayerId) {
       ensureSelectedCivsPlayerHydrated(forceRefresh);
     } else {
       ensureGroupMatchesCoverWindow(state.playerIds, state.civsMode, state.civsPeriodDays, () => {
+        setSyncStatus(`Ampliando ventana de ${state.civsPeriodDays}d...`, 'loading');
         rebuildPlayersFromUnifiedPool();
         if (state.currentTab === 'civs') renderCurrentView();
+      }).then(() => {
+        setSyncStatus('✓ Datos completos', 'done');
       });
     }
   } else if (state.currentTab === 'analytics') {
@@ -591,10 +706,12 @@ async function ensureSelectedCivsPlayerHydrated(forceRefresh = false) {
   if (!pid) return;
   const lbId = state.civsMode === 'rm_team' ? CONFIG.LEADERBOARDS.RM_TEAM : CONFIG.LEADERBOARDS.RM_1V1;
 
+  setSyncStatus('Cargando estadísticas del jugador...', 'loading');
   await fetchPlayerCondensedStats(pid, lbId, forceRefresh);
   if (state.currentTab === 'civs' && state.civsSelectedPlayerId === pid) {
     renderCurrentView();
   }
+  setSyncStatus('✓ Datos completos', 'done');
 }
 
 /**
@@ -618,11 +735,17 @@ async function ensureAnalyticsPlayersLoaded(forceRefresh = false) {
   }
 
   const idsToLoad = [p1Id, p2Id].filter(Boolean);
+  if (idsToLoad.length > 0) {
+    setSyncStatus('Sincronizando analítica de jugadores...', 'loading');
+  }
   for (const pid of idsToLoad) {
     await fetchPlayerCondensedStats(pid, mode, forceRefresh);
     if (state.currentTab === 'analytics') {
       renderCurrentView();
     }
+  }
+  if (idsToLoad.length > 0) {
+    setSyncStatus('✓ Datos completos', 'done');
   }
 }
 

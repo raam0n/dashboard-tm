@@ -1,4 +1,4 @@
-import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261110b';
+import { getFlagUrl, formatDateDDMMYYYY } from './api.js?v=20261110c';
 
 let internalPeriodDays = 7;
 

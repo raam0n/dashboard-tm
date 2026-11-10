@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="assets/icons/logo-128.png" type="image/png">
   <title>AOE2 Group Dashboard - TM</title>
-  <link rel="stylesheet" href="css/style.css?v=20261110b">
+  <link rel="stylesheet" href="css/style.css?v=20261110c">
 </head>
 <body>
 
@@ -44,6 +44,10 @@
 
     <!-- Acciones -->
     <div class="header-actions">
+      <div class="sync-status-pill hidden" id="syncStatusPill" role="status" aria-live="polite">
+        <span class="mini-spinner" id="syncStatusSpinner"></span>
+        <span class="sync-status-text" id="syncStatusText">Sincronizando...</span>
+      </div>
       <button class="btn" id="managePlayersBtn" title="Gestionar, tildar u ocultar jugadores">
         👥 Jugadores (<span id="activeCountBadge">0</span>)
       </button>
@@ -144,6 +148,6 @@
   </div>
 
   <!-- Script Principal -->
-  <script type="module" src="js/app.js?v=20261110b"></script>
+  <script type="module" src="js/app.js?v=20261110c"></script>
 </body>
 </html>
