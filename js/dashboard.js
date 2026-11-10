@@ -1,4 +1,4 @@
-import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261110a';
+import { getCivIconUrl, getFlagUrl, getPlayerStats, MAX_LIVE_DURATION_SEC } from './api.js?v=20261110b';
 
 let liveTimerInterval = null;
 // Guarda qué tarjetas tienen desplegados los escudos de civilizaciones

@@ -2066,4 +2066,243 @@ a.last-match-col:hover .match-map-frame {
   background: rgba(239, 68, 68, 0.12);
 }
 
+/* ==========================================================================
+   Solapa: Analítica y Comparación de Jugadores (analytics.js)
+   ========================================================================== */
+.analytics-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .analytics-split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analytics-player-col {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.analytics-player-col.slot-left {
+  border-top: 3px solid #3b82f6;
+}
+
+.analytics-player-col.slot-right {
+  border-top: 3px solid #f59e0b;
+}
+
+.analytics-col-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.analytics-slot-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.analytics-slot-badge {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 5px;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.analytics-slot-badge.slot-left {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  color: #93c5fd;
+}
+
+.analytics-slot-badge.slot-right {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fcd34d;
+}
+
+.analytics-player-select {
+  flex: 1;
+  min-width: 190px;
+  font-weight: 700;
+}
+
+.analytics-player-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.analytics-player-name-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  transition: color 0.15s ease;
+}
+
+.analytics-player-name-btn:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.analytics-elo-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analytics-elo-pill {
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 6px;
+}
+
+.analytics-elo-pill.current {
+  background: rgba(0, 153, 255, 0.16);
+  border: 1px solid rgba(0, 153, 255, 0.4);
+  color: #38bdf8;
+}
+
+.analytics-elo-pill.max {
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+}
+
+.analytics-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .analytics-kpis-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.analytics-kpi-box {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 7px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.analytics-kpi-box .kpi-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.analytics-kpi-box .kpi-val {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.analytics-kpi-box .kpi-favs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.88rem;
+}
+
+.kpi-civ-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.analytics-section-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1.05rem;
+  margin-bottom: 8px;
+}
+
+.analytics-section-subtitle.civs-color {
+  color: #f59e0b;
+}
+
+.analytics-section-subtitle.maps-color {
+  color: #38bdf8;
+}
+
+.analytics-period-tag {
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.07);
+  color: #ccc;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.analytics-shared-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  color: #d8b4fe;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.analytics-empty-comparison {
+  text-align: center;
+  padding: 50px 24px;
+  color: #9ca3af;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 260px;
+}
+
+.analytics-empty-comparison h3 {
+  color: #e5e7eb;
+  margin-bottom: 8px;
+  font-size: 1.2rem;
+}
+
+.analytics-empty-comparison p {
+  max-width: 380px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+
 

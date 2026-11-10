@@ -38,9 +38,13 @@ export const CONFIG = {
   STORAGE_KEY_PLAYERS: 'aoe2_dashboard_player_ids',
   STORAGE_KEY_DISABLED: 'aoe2_dashboard_disabled_ids',
   STORAGE_KEY_PROFILES_CACHE: 'aoe2_dashboard_profiles_cache_v1',
+  STORAGE_KEY_MATCHES_CACHE: 'aoe2_dashboard_matches_cache_v1',
+  STORAGE_KEY_STATS_ALL_CACHE: 'aoe2_dashboard_stats_all_cache_v1',
   STORAGE_KEY_VIEW_MODE: 'aoe2_dashboard_view_mode',
+  MATCHES_CACHE_TTL_MS: 5 * 60 * 1000, // 5 minutos de caché local para evitar ráfagas al recargar
+  STATS_ALL_CACHE_TTL_MS: 15 * 60 * 1000, // 15 minutos de caché para estadísticas condensadas históricas
   ACTIVE_DAYS_THRESHOLD: 30, // 30 días (último mes) para considerar activo en el ranking
-  POLL_INTERVAL_MS: 30000, // 30 segundos para refresco de partidas en vivo
+  POLL_INTERVAL_MS: 45000, // 45 segundos para refresco liviano de partidas en vivo
   LEADERBOARDS: {
     RM_1V1: 'rm_1v1',
     RM_TEAM: 'rm_team'

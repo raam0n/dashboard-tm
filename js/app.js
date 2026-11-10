@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js?v=20261110a';
+import { CONFIG } from './config.js?v=20261110b';
 import { 
   getActivePlayerIds, 
   getAllConfiguredPlayerIds, 
@@ -10,19 +10,24 @@ import {
   fetchMatches,
   fetchGroupLiveMatches,
   fetchGroupBootstrap,
+  ensureGroupMatchesCoverWindow,
+  fetchPlayerCondensedStats,
+  getAllUnifiedRawMatches,
+  getPlayerMatchesFromUnifiedPool,
   buildPlayerStatsFromProfileAndMatches,
   getProfileOverallLastMatchDate,
   getProfileOverallLastMatchTimestamp,
   fetchGroupRecentMatches
-} from './api.js?v=20261110a';
-import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261110a';
-import { renderWeeklyView } from './weekly.js?v=20261110a';
-import { renderCivsAndMapsView } from './civs-maps.js?v=20261110a';
-import { renderRecentMatchesView } from './history.js?v=20261110a';
+} from './api.js?v=20261110b';
+import { renderLiveBanner, renderPlayersGrid, showPlayerModal } from './dashboard.js?v=20261110b';
+import { renderWeeklyView } from './weekly.js?v=20261110b';
+import { renderCivsAndMapsView } from './civs-maps.js?v=20261110b';
+import { renderRecentMatchesView } from './history.js?v=20261110b';
+import { renderAnalyticsComparisonView } from './analytics.js?v=20261110b';
 
 // Estado global de la aplicación
 const state = {
-  currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'history' | 'weekly' | 'civs'
+  currentTab: 'rm_1v1', // 'rm_1v1' | 'rm_team' | 'history' | 'weekly' | 'civs' | 'analytics'
   eloSortBy: 'current', // 'current' | 'max'
   viewMode: localStorage.getItem(CONFIG.STORAGE_KEY_VIEW_MODE) || 'grid', // 'grid' | 'list'
   weeklyMode: 'rm_1v1', // 'rm_1v1' | 'rm_team'
@@ -30,6 +35,12 @@ const state = {
   civsMode: 'rm_1v1',   // 'rm_1v1' | 'rm_team'
   civsPeriodDays: 7,    // 7 | 30 | 90
   civsSelectedPlayerId: null, // null (todos) | profileId
+  analyticsConfig: {
+    mode: 'rm_1v1',     // 'rm_1v1' | 'rm_team'
+    period: 7,          // 7 | 30 | 90 | 'max'
+    player1Id: null,    // profileId Jugador 1
+    player2Id: undefined // undefined (auto 2do) | null (solo 1 jugador) | profileId Jugador 2
+  },
   recentMatchesRaw: [],
   isLoadingHistory: false,
   historyFilters: {
@@ -113,6 +124,7 @@ function setupEventListeners() {
       tab.classList.add('active');
       state.currentTab = tab.dataset.tab;
       renderCurrentView();
+      triggerLazyDataForActiveTab(false);
     });
   });
 
@@ -291,9 +303,28 @@ function syncPlayingState(list1v1, listTeam, groupLiveMatches = []) {
 }
 
 /**
- * Carga los datos de los jugadores en 2 fases:
- * - Fase 1 (Instantánea ~0.5s): 4 llamadas grupales en lote para renderizar el ranking y el banner live al instante.
- * - Fase 2 (Segundo plano): hidrata perfiles de inactivos faltantes y el historial de 20 partidas SOLO de los jugadores activos en el último mes.
+ * Reconstruye las listas en memoria (`playersData1v1`, `playersDataTeam` y `recentMatchesRaw`)
+ * reciclando el pool central unificado de partidas sin realizar nuevas llamadas de red.
+ */
+function rebuildPlayersFromUnifiedPool() {
+  state.recentMatchesRaw = getAllUnifiedRawMatches();
+  state.playersData1v1 = state.playersData1v1.map(p => {
+    if (!p || !p.profile) return p;
+    const matches = getPlayerMatchesFromUnifiedPool(p.profileId, CONFIG.LEADERBOARDS.RM_1V1);
+    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_1V1, matches, true);
+  });
+  state.playersDataTeam = state.playersDataTeam.map(p => {
+    if (!p || !p.profile) return p;
+    const matches = getPlayerMatchesFromUnifiedPool(p.profileId, CONFIG.LEADERBOARDS.RM_TEAM);
+    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_TEAM, matches, true);
+  });
+  syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
+}
+
+/**
+ * Carga los datos de los jugadores reciclando las consultas grupales en lote (Camino 1):
+ * - Fase 1 (Instantánea): 5 llamadas grupales en lote que pueblan el ranking 1v1, Team, Live y el pool unificado de partidas.
+ * - Fase 2 (Segundo plano suave): completa únicamente perfiles de inactivos que no estaban en caché, de a 2 por vez para no disparar bloqueos 429.
  */
 async function loadAllData(forceRefresh = false) {
   const myGen = ++state.loadGeneration;
@@ -309,7 +340,7 @@ async function loadAllData(forceRefresh = false) {
   }
 
   try {
-    // FASE 1: Bootstrap grupal ultrarrápido
+    // FASE 1: Bootstrap grupal unificado (5 requests grupales o instantáneo desde caché local)
     const bootstrap = await fetchGroupBootstrap(state.playerIds, forceRefresh);
     if (myGen !== state.loadGeneration) return;
 
@@ -322,9 +353,12 @@ async function loadAllData(forceRefresh = false) {
     state.isLoading = false;
     renderCurrentView();
 
-    // FASE 2A: Completar perfiles de jugadores inactivos que no estaban en ambos leaderboards activos
+    // Si el usuario está en Winrate, Civs o Analítica al refrescar, aseguramos cubrir su ventana activa
+    triggerLazyDataForActiveTab(forceRefresh);
+
+    // FASE 2: Completar de forma espaciada los perfiles de jugadores inactivos que no estaban en caché
     const missingProfileIds = bootstrap.missingProfileIds || [];
-    const batchSize = 4;
+    const batchSize = 2;
 
     for (let i = 0; i < missingProfileIds.length; i += batchSize) {
       if (myGen !== state.loadGeneration) return;
@@ -336,22 +370,20 @@ async function loadAllData(forceRefresh = false) {
         if (!prof || !prof.profileId) return;
         const idx1 = state.playersData1v1.findIndex(p => p.profileId === prof.profileId);
         if (idx1 !== -1) {
-          const prev = state.playersData1v1[idx1];
           state.playersData1v1[idx1] = buildPlayerStatsFromProfileAndMatches(
             prof,
             CONFIG.LEADERBOARDS.RM_1V1,
-            prev.matches,
-            prev.matchesLoaded
+            null,
+            true
           );
         }
         const idxT = state.playersDataTeam.findIndex(p => p.profileId === prof.profileId);
         if (idxT !== -1) {
-          const prev = state.playersDataTeam[idxT];
           state.playersDataTeam[idxT] = buildPlayerStatsFromProfileAndMatches(
             prof,
             CONFIG.LEADERBOARDS.RM_TEAM,
-            prev.matches,
-            prev.matchesLoaded
+            null,
+            true
           );
         }
       });
@@ -359,56 +391,8 @@ async function loadAllData(forceRefresh = false) {
       syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
       renderCurrentView();
       if (i + batchSize < missingProfileIds.length) {
-        await new Promise(r => setTimeout(r, 180));
+        await new Promise(r => setTimeout(r, 450));
       }
-    }
-
-    // FASE 2B: Cargar el historial de hasta 100 partidas (priorizando activos en 30d y luego hasta 90d)
-    async function hydrateActiveLeaderboardMatches(targetList, leaderboardId) {
-      const activeMonth = targetList.filter(p => p && p.isActiveLastMonth && (!p.matchesLoaded || forceRefresh));
-      const activeQuarter = targetList.filter(p => p && !p.isActiveLastMonth && p.isActiveLast3Months && (!p.matchesLoaded || forceRefresh));
-      const toHydrate = [...activeMonth, ...activeQuarter];
-
-      for (let i = 0; i < toHydrate.length; i += batchSize) {
-        if (myGen !== state.loadGeneration) return;
-        const batch = toHydrate.slice(i, i + batchSize);
-        const matchesBatch = await Promise.all(
-          batch.map(p => fetchMatches(p.profileId, leaderboardId, 100, forceRefresh))
-        );
-        if (myGen !== state.loadGeneration) return;
-
-        batch.forEach((p, idx) => {
-          const matches = matchesBatch[idx] || [];
-          const listIdx = targetList.findIndex(item => item && item.profileId === p.profileId);
-          if (listIdx !== -1) {
-            targetList[listIdx] = buildPlayerStatsFromProfileAndMatches(
-              targetList[listIdx].profile,
-              leaderboardId,
-              matches,
-              true
-            );
-          }
-        });
-
-        syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
-        renderCurrentView();
-        if (i + batchSize < toHydrate.length) {
-          await new Promise(r => setTimeout(r, 180));
-        }
-      }
-    }
-
-    // Priorizamos la solapa que el usuario está viendo actualmente
-    const prioritizeTeam = state.currentTab === 'rm_team' ||
-      (state.currentTab === 'weekly' && state.weeklyMode === 'rm_team') ||
-      (state.currentTab === 'civs' && state.civsMode === 'rm_team');
-
-    if (prioritizeTeam) {
-      await hydrateActiveLeaderboardMatches(state.playersDataTeam, CONFIG.LEADERBOARDS.RM_TEAM);
-      await hydrateActiveLeaderboardMatches(state.playersData1v1, CONFIG.LEADERBOARDS.RM_1V1);
-    } else {
-      await hydrateActiveLeaderboardMatches(state.playersData1v1, CONFIG.LEADERBOARDS.RM_1V1);
-      await hydrateActiveLeaderboardMatches(state.playersDataTeam, CONFIG.LEADERBOARDS.RM_TEAM);
     }
   } catch (err) {
     console.error('Error cargando datos de jugadores:', err);
@@ -417,6 +401,29 @@ async function loadAllData(forceRefresh = false) {
       state.isLoading = false;
       renderCurrentView();
     }
+  }
+}
+
+/**
+ * Dispara la paginación grupal o la carga condensada bajo demanda únicamente para la solapa activa
+ */
+function triggerLazyDataForActiveTab(forceRefresh = false) {
+  if (state.currentTab === 'weekly') {
+    ensureGroupMatchesCoverWindow(state.playerIds, state.weeklyMode, state.weeklyPeriodDays, () => {
+      rebuildPlayersFromUnifiedPool();
+      if (state.currentTab === 'weekly') renderCurrentView();
+    });
+  } else if (state.currentTab === 'civs') {
+    if (state.civsSelectedPlayerId) {
+      ensureSelectedCivsPlayerHydrated(forceRefresh);
+    } else {
+      ensureGroupMatchesCoverWindow(state.playerIds, state.civsMode, state.civsPeriodDays, () => {
+        rebuildPlayersFromUnifiedPool();
+        if (state.currentTab === 'civs') renderCurrentView();
+      });
+    }
+  } else if (state.currentTab === 'analytics') {
+    ensureAnalyticsPlayersLoaded(forceRefresh);
   }
 }
 
@@ -519,11 +526,13 @@ function renderCurrentView() {
       (newMode) => {
         state.weeklyMode = newMode;
         renderCurrentView();
+        triggerLazyDataForActiveTab(false);
       },
       state.weeklyPeriodDays,
       (newDays) => {
         state.weeklyPeriodDays = newDays;
         renderCurrentView();
+        triggerLazyDataForActiveTab(false);
       }
     );
   } else if (state.currentTab === 'civs') {
@@ -539,45 +548,80 @@ function renderCurrentView() {
       state.civsMode,
       (newMode) => {
         state.civsMode = newMode;
-        ensureSelectedCivsPlayerHydrated();
         renderCurrentView();
+        triggerLazyDataForActiveTab(false);
       },
       state.civsPeriodDays,
       (newDays) => {
         state.civsPeriodDays = newDays;
         renderCurrentView();
+        triggerLazyDataForActiveTab(false);
       },
       state.civsSelectedPlayerId,
       (newPlayerId) => {
         state.civsSelectedPlayerId = newPlayerId;
-        ensureSelectedCivsPlayerHydrated();
         renderCurrentView();
+        triggerLazyDataForActiveTab(false);
       }
+    );
+  } else if (state.currentTab === 'analytics') {
+    elements.contentArea.className = '';
+    const mode = state.analyticsConfig.mode || 'rm_1v1';
+    const data = mode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
+    renderAnalyticsComparisonView(
+      data,
+      elements.contentArea,
+      state.analyticsConfig,
+      (newConfig) => {
+        state.analyticsConfig = newConfig;
+        renderCurrentView();
+        ensureAnalyticsPlayersLoaded(false);
+      },
+      handlePlayerProfileClick
     );
   }
 }
 
 /**
- * Si el usuario filtra un jugador específico en Top Civs & Mapas que aún no tenía sus partidas cargadas,
- * las solicita bajo demanda y actualiza la vista.
+ * Si el usuario filtra un jugador específico en Top Civs & Mapas, solicita sus estadísticas condensadas
+ * (y recicla las partidas ya conocidas) para cubrir cualquier ventana sin multiplicar llamadas.
  */
-async function ensureSelectedCivsPlayerHydrated() {
+async function ensureSelectedCivsPlayerHydrated(forceRefresh = false) {
   const pid = state.civsSelectedPlayerId;
   if (!pid) return;
   const lbId = state.civsMode === 'rm_team' ? CONFIG.LEADERBOARDS.RM_TEAM : CONFIG.LEADERBOARDS.RM_1V1;
-  const targetList = state.civsMode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
-  const idx = targetList.findIndex(p => p && p.profileId === pid);
-  if (idx !== -1 && !targetList[idx].matchesLoaded) {
-    const fullStats = await getPlayerStats(pid, lbId, false, true);
-    if (fullStats) {
-      const currentIdx = targetList.findIndex(p => p && p.profileId === pid);
-      if (currentIdx !== -1) {
-        targetList[currentIdx] = fullStats;
-        syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
-        if (state.currentTab === 'civs') {
-          renderCurrentView();
-        }
-      }
+
+  await fetchPlayerCondensedStats(pid, lbId, forceRefresh);
+  if (state.currentTab === 'civs' && state.civsSelectedPlayerId === pid) {
+    renderCurrentView();
+  }
+}
+
+/**
+ * Asegura que los 1 o 2 jugadores seleccionados en la solapa de Analítica & Comparación
+ * tengan sus estadísticas condensadas (`/stats/all`, que incluye 7d, 30d, 90d e Histórico en 1 llamada)
+ */
+async function ensureAnalyticsPlayersLoaded(forceRefresh = false) {
+  const mode = state.analyticsConfig.mode || 'rm_1v1';
+  const data = mode === 'rm_team' ? state.playersDataTeam : state.playersData1v1;
+  const validPlayers = data.filter(Boolean);
+  const byEloDesc = [...validPlayers].sort((a, b) => (b.currentElo || 0) - (a.currentElo || 0));
+
+  let p1Id = state.analyticsConfig.player1Id;
+  if (!p1Id || !validPlayers.some(p => p.profileId === p1Id)) {
+    p1Id = byEloDesc[0]?.profileId || null;
+  }
+
+  let p2Id = state.analyticsConfig.player2Id;
+  if (p2Id === undefined) {
+    p2Id = byEloDesc.find(p => p.profileId !== p1Id)?.profileId || null;
+  }
+
+  const idsToLoad = [p1Id, p2Id].filter(Boolean);
+  for (const pid of idsToLoad) {
+    await fetchPlayerCondensedStats(pid, mode, forceRefresh);
+    if (state.currentTab === 'analytics') {
+      renderCurrentView();
     }
   }
 }
@@ -825,20 +869,10 @@ function startPolling() {
         if (p && p.isPlayingNow) prevPlayingIds.add(p.profileId);
       });
 
-      // 1 sola llamada grupal para ver partidas en vivo actuales
+      // 1 sola llamada grupal para ver partidas en vivo actuales (y reciclar las nuevas en el pool unificado)
       const liveMatches = await fetchGroupLiveMatches(state.playerIds);
       state.liveMatches = liveMatches || [];
-      syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
-
-      // Si la solapa activa es 'history', refrescamos el feed en segundo plano
-      if (state.currentTab === 'history') {
-        fetchGroupRecentMatches(state.playerIds, 100).then(matches => {
-          if (matches && matches.length > 0) {
-            state.recentMatchesRaw = matches;
-            renderCurrentView();
-          }
-        }).catch(() => {});
-      }
+      rebuildPlayersFromUnifiedPool();
 
       // Si algún jugador que estaba en vivo terminó su partida, refrescamos únicamente a ese jugador
       const nowPlayingIds = new Set();

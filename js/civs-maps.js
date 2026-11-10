@@ -1,4 +1,4 @@
-import { getCivIconUrl, formatDateDDMMYYYY } from './api.js?v=20261110a';
+import { getCivIconUrl, formatDateDDMMYYYY, getPlayerCivsAndMapsAnalytics } from './api.js?v=20261110b';
 
 let activeSubView = 'civs'; // 'civs' | 'maps'
 let internalPeriodDays = 7; // 7 | 30 | 90
@@ -42,48 +42,58 @@ export function renderCivsAndMapsView(
     (a.name || '').localeCompare(b.name || '')
   );
 
-  const allMatches = [];
-  targetPlayers.forEach(p => {
-    (p.matches || []).forEach(m => {
-      if (m.status === 'complete' && typeof m.player?.won === 'boolean' && m.started && m.started >= periodAgo) {
-        allMatches.push(m);
+  let sortedCivs = [];
+  let sortedMaps = [];
+
+  if (selectedPlayer) {
+    // Reciclamos los datos unificados (partidas en memoria + stats condensadas de la API si están disponibles)
+    const analytics = getPlayerCivsAndMapsAnalytics(selectedPlayer, currentMode, days);
+    sortedCivs = analytics.civs;
+    sortedMaps = analytics.maps;
+  } else {
+    const allMatches = [];
+    targetPlayers.forEach(p => {
+      (p.matches || []).forEach(m => {
+        if (m.status === 'complete' && typeof m.player?.won === 'boolean' && m.started && m.started >= periodAgo) {
+          allMatches.push(m);
+        }
+      });
+    });
+
+    // Agrupamos por civilización
+    const civMap = {};
+    // Agrupamos por mapa
+    const mapsMap = {};
+
+    allMatches.forEach(m => {
+      const civ = m.player?.civ;
+      const map = m.mapName;
+      const won = m.player?.won;
+
+      if (civ) {
+        if (!civMap[civ]) civMap[civ] = { name: civ, total: 0, wins: 0, losses: 0 };
+        civMap[civ].total += 1;
+        if (won) civMap[civ].wins += 1;
+        else civMap[civ].losses += 1;
+      }
+
+      if (map) {
+        if (!mapsMap[map]) mapsMap[map] = { name: map, mapImageUrl: m.mapImageUrl || '', total: 0, wins: 0, losses: 0 };
+        if (!mapsMap[map].mapImageUrl && m.mapImageUrl) mapsMap[map].mapImageUrl = m.mapImageUrl;
+        mapsMap[map].total += 1;
+        if (won) mapsMap[map].wins += 1;
+        else mapsMap[map].losses += 1;
       }
     });
-  });
 
-  // Agrupamos por civilización
-  const civMap = {};
-  // Agrupamos por mapa
-  const mapsMap = {};
+    sortedCivs = Object.values(civMap)
+      .map(c => ({ ...c, winRate: (c.wins / c.total) * 100 }))
+      .sort((a, b) => b.total - a.total);
 
-  allMatches.forEach(m => {
-    const civ = m.player?.civ;
-    const map = m.mapName;
-    const won = m.player?.won;
-
-    if (civ) {
-      if (!civMap[civ]) civMap[civ] = { name: civ, total: 0, wins: 0, losses: 0 };
-      civMap[civ].total += 1;
-      if (won) civMap[civ].wins += 1;
-      else civMap[civ].losses += 1;
-    }
-
-    if (map) {
-      if (!mapsMap[map]) mapsMap[map] = { name: map, mapImageUrl: m.mapImageUrl || '', total: 0, wins: 0, losses: 0 };
-      if (!mapsMap[map].mapImageUrl && m.mapImageUrl) mapsMap[map].mapImageUrl = m.mapImageUrl;
-      mapsMap[map].total += 1;
-      if (won) mapsMap[map].wins += 1;
-      else mapsMap[map].losses += 1;
-    }
-  });
-
-  const sortedCivs = Object.values(civMap)
-    .map(c => ({ ...c, winRate: (c.wins / c.total) * 100 }))
-    .sort((a, b) => b.total - a.total);
-
-  const sortedMaps = Object.values(mapsMap)
-    .map(m => ({ ...m, winRate: (m.wins / m.total) * 100 }))
-    .sort((a, b) => b.total - a.total);
+    sortedMaps = Object.values(mapsMap)
+      .map(m => ({ ...m, winRate: (m.wins / m.total) * 100 }))
+      .sort((a, b) => b.total - a.total);
+  }
 
   const civRows = sortedCivs.map((c, idx) => `
     <tr>
