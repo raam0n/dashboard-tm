@@ -137,7 +137,7 @@ function saveMatchesCacheToStorage() {
       const m = allSorted[i];
       if (!m || !m.matchId) continue;
 
-      let shouldKeep = i < 900;
+      let shouldKeep = i < 1200;
       const lbId = m.leaderboardId;
 
       if (Array.isArray(m.teams) && (lbId === CONFIG.LEADERBOARDS.RM_1V1 || lbId === CONFIG.LEADERBOARDS.RM_TEAM)) {
@@ -950,7 +950,7 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
       prof,
       CONFIG.LEADERBOARDS.RM_TEAM,
       playerMatches,
-      null
+      true
     );
   }).filter(Boolean);
 
@@ -974,10 +974,10 @@ export async function fetchGroupBootstrap(playerIds, forceRefresh = false) {
 }
 
 /**
- * Trae hasta `targetPages` páginas grupales (ej. páginas 2, 3 y 4 = 300-400 partidas por modo)
- * para cubrir la mayor cantidad posible de rombos de los jugadores en lote antes del relleno individual.
+ * Trae hasta `targetPages` páginas grupales (por defecto 8 páginas = 800 partidas en RM 1v1)
+ * para cubrir la mayor cantidad posible de rombos y ventanas de tiempo en lote antes del relleno individual.
  */
-export async function fetchAdditionalGroupMatchPages(playerIds, leaderboardId = 'rm_1v1', targetPages = 4, onPageLoaded = null) {
+export async function fetchAdditionalGroupMatchPages(playerIds, leaderboardId = 'rm_1v1', targetPages = 8, onPageLoaded = null) {
   if (!Array.isArray(playerIds) || playerIds.length === 0) return;
 
   const metaCurrent = groupLeaderboardPagination.get(leaderboardId) || { maxPage: 0, oldestStartedSec: Infinity, exhausted: false };
@@ -1089,6 +1089,11 @@ export async function topUpPlayerLastMatches(profileId, leaderboardId = 'rm_1v1'
 export async function ensureGroupMatchesCoverWindow(playerIds, leaderboardId = 'rm_1v1', days = 7, onPageLoaded = null) {
   if (!Array.isArray(playerIds) || playerIds.length === 0) return;
 
+  // Para RM Team nos mantenemos en las últimas 100 partidas (página 1)
+  if (leaderboardId === CONFIG.LEADERBOARDS.RM_TEAM) {
+    return;
+  }
+
   const targetCutoffSec = (Date.now() / 1000) - (days * 24 * 60 * 60);
   const currentMeta = groupLeaderboardPagination.get(leaderboardId) || { maxPage: 0, oldestStartedSec: Infinity, exhausted: false };
 
@@ -1101,8 +1106,8 @@ export async function ensureGroupMatchesCoverWindow(playerIds, leaderboardId = '
     return groupPaginationInFlight.get(leaderboardId);
   }
 
-  // Límite prudente de páginas grupales según la ventana (cada página trae 100 partidas del grupo)
-  const maxPagesAllowed = days <= 7 ? 3 : (days <= 30 ? 6 : 10);
+  // Margen duplicado de páginas grupales para RM 1v1 según la ventana (cada página trae 100 partidas del grupo)
+  const maxPagesAllowed = days <= 7 ? 8 : (days <= 30 ? 10 : 14);
   const idsParam = playerIds.join(',');
 
   const jobPromise = (async () => {
@@ -1406,6 +1411,7 @@ export function buildPlayerStatsFromProfileAndMatches(profile, leaderboardId = '
   const topUpTs = playerTopUpTimestampMap.get(`${profileId}_${leaderboardId}`) || 0;
   const hasTopUpCoverage = topUpTs > 0 && topUpTs >= (lastMatchTimestamp || 1);
   const isMatchesLoaded = matchesLoaded === true ||
+    leaderboardId === CONFIG.LEADERBOARDS.RM_TEAM ||
     resolvedMatches.length >= 10 ||
     resolvedMatches.length >= totalLbGames ||
     hasTopUpCoverage ||

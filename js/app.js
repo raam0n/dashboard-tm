@@ -359,16 +359,16 @@ function rebuildPlayersFromUnifiedPool() {
   state.playersDataTeam = state.playersDataTeam.map(p => {
     if (!p || !p.profile) return p;
     const matches = getPlayerMatchesFromUnifiedPool(p.profileId, CONFIG.LEADERBOARDS.RM_TEAM);
-    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_TEAM, matches, null);
+    return buildPlayerStatsFromProfileAndMatches(p.profile, CONFIG.LEADERBOARDS.RM_TEAM, matches, true);
   });
   syncPlayingState(state.playersData1v1, state.playersDataTeam, state.liveMatches);
 }
 
 /**
  * Carga los datos de los jugadores combinando:
- * - Fase 1 (Instantánea): 5 llamadas grupales en lote que pueblan el ranking 1v1, Team, Live y la página 1 del pool.
- * - Fase 2 (Alternativa 1): Trae hasta 4 páginas grupales por modo (300-400 partidas) para poblar los rombos de la mayoría.
- * - Fase 3 (Alternativa 3): Rellena quirúrgicamente las últimas 10 partidas solo de los jugadores activos que hayan quedado con < 10 rombos.
+ * - Fase 1 (Instantánea): 5 llamadas grupales en lote que pueblan el ranking 1v1, Team (100 partidas), Live y la página 1 de 1v1.
+ * - Fase 2 (Alternativa 1 duplicada para 1v1): Trae hasta 8 páginas grupales de RM 1vs1 (800 partidas) mientras RM Team queda en sus 100 partidas.
+ * - Fase 3 (Alternativa 3 para 1v1): Rellena quirúrgicamente las últimas 10 partidas de los jugadores activos de 1v1 que hayan quedado con < 10 rombos.
  * - Fase 4 (Perfiles inactivos): Completa perfiles de inactivos que no estaban en caché.
  */
 async function loadAllData(forceRefresh = false) {
@@ -403,41 +403,25 @@ async function loadAllData(forceRefresh = false) {
     // Si el usuario está en Winrate, Civs o Analítica al refrescar, aseguramos cubrir su ventana activa
     triggerLazyDataForActiveTab(forceRefresh);
 
-    // Determinamos qué modo priorizar según la solapa activa
-    const prioritizeTeam = state.currentTab === 'rm_team' ||
-      (state.currentTab === 'weekly' && state.weeklyMode === 'rm_team') ||
-      (state.currentTab === 'civs' && state.civsMode === 'rm_team');
-
-    const modeOrder = prioritizeTeam
-      ? [CONFIG.LEADERBOARDS.RM_TEAM, CONFIG.LEADERBOARDS.RM_1V1]
-      : [CONFIG.LEADERBOARDS.RM_1V1, CONFIG.LEADERBOARDS.RM_TEAM];
-
-    // FASE 2 (Alternativa 1): Expandir hasta 4 páginas grupales por modo (hasta 400 partidas por modo)
-    for (const lbId of modeOrder) {
+    // FASE 2 (Alternativa 1): Duplicamos el volumen de RM 1vs1 hasta 8 páginas grupales (800 partidas de 1v1); RM Team queda en las 100 de Fase 1
+    await fetchAdditionalGroupMatchPages(state.playerIds, CONFIG.LEADERBOARDS.RM_1V1, 8, (page, total) => {
       if (myGen !== state.loadGeneration) return;
-      const lbLabel = lbId === CONFIG.LEADERBOARDS.RM_TEAM ? 'RM Team' : 'RM 1v1';
-      await fetchAdditionalGroupMatchPages(state.playerIds, lbId, 4, (page, total) => {
-        if (myGen !== state.loadGeneration) return;
-        setSyncStatus(`Cargando partidas ${lbLabel} (pág. ${page}/${total})...`, 'loading');
-        rebuildPlayersFromUnifiedPool();
-        renderCurrentView();
-      });
-    }
+      setSyncStatus(`Cargando partidas RM 1v1 (pág. ${page}/${total})...`, 'loading');
+      rebuildPlayersFromUnifiedPool();
+      renderCurrentView();
+    });
 
     if (myGen !== state.loadGeneration) return;
     rebuildPlayersFromUnifiedPool();
     renderCurrentView();
 
-    // FASE 3 (Alternativa 3): Completar últimas 10 partidas para los jugadores activos que aún tengan < 10 rombos
+    // FASE 3 (Alternativa 3): Completar últimas 10 partidas para los jugadores activos de RM 1v1 que aún tengan < 10 rombos
     const pendingTopUps = [];
-    for (const lbId of modeOrder) {
-      const list = lbId === CONFIG.LEADERBOARDS.RM_TEAM ? state.playersDataTeam : state.playersData1v1;
-      list.forEach(p => {
-        if (p && p.isActiveLastMonth && p.matches.length < 10 && !p.matchesLoaded) {
-          pendingTopUps.push({ profileId: p.profileId, name: p.name, leaderboardId: lbId });
-        }
-      });
-    }
+    state.playersData1v1.forEach(p => {
+      if (p && p.isActiveLastMonth && p.matches.length < 10 && !p.matchesLoaded) {
+        pendingTopUps.push({ profileId: p.profileId, name: p.name, leaderboardId: CONFIG.LEADERBOARDS.RM_1V1 });
+      }
+    });
 
     const topUpBatchSize = 2;
     for (let i = 0; i < pendingTopUps.length; i += topUpBatchSize) {
